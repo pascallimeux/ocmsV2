@@ -1,0 +1,55 @@
+client:
+ peers:
+  peer1:
+    host: "localhost"
+    port: 7051
+    event_host: "localhost"
+    event_port: 7053
+    tls:
+      # Certificate location absolute path
+      certificate: "/home/blockchain/src/github.com/pascallimeux/ocmsv2/fixtures/tls/peers/peer0/ca-cert.pem"
+      serverHostOverride: "peer0"
+
+  peer2:
+    host: "localhost"
+    port: 7056
+    tls:
+      # Certificate location absolute path
+      certificate: "/home/blockchain/src/github.com/pascallimeux/ocmsv2/fixtures/tls/peers/peer1/ca-cert.pem"
+      serverHostOverride: "peer1"
+
+ tls:
+  enabled: true
+
+ security:
+  enabled: true
+  hashAlgorithm: "SHA2"
+  level: 256
+
+ tcert:
+  batch:
+    size: 200
+
+ orderer:
+  host: "localhost"
+  port: 7050
+  tls:
+    # Certificate location absolute path
+    certificate: "/home/blockchain/src/github.com/pascallimeux/ocmsv2/fixtures/tls/orderer/ca-cert.pem"
+    serverHostOverride: "orderer0"
+
+ logging:
+  level: info
+
+ fabricCA:
+  tlsEnabled: true
+  id: "Org1MSP"
+  serverURL: "http://localhost:7054"
+  certfiles :
+    - "/home/blockchain/src/github.com/pascallimeux/ocmsv2/fixtures/root.pem"
+  client:
+   keyfile: "/home/blockchain/src/github.com/pascallimeux/ocmsv2/fixtures/tls_client-key.pem"
+   certfile: "/home/blockchain/src/github.com/pascallimeux/ocmsv2/fixtures/tls_client-cert.pem"
+
+ keystore:
+  path: "/home/blockchain/src/github.com/pascallimeux/ocmsv2/fixtures/keystore"
