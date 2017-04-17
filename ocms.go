@@ -5,10 +5,9 @@ import (
 	"log"
 	"os"
 	"crypto/x509"
-	"path/filepath"
 	fabricClient "github.com/hyperledger/fabric-sdk-go/fabric-client"
 	fabricCAClient "github.com/hyperledger/fabric-sdk-go/fabric-ca-client"
-	kvs "github.com/hyperledger/fabric-sdk-go/fabric-client/keyvaluestore"
+	//kvs "github.com/hyperledger/fabric-sdk-go/fabric-client/keyvaluestore"
 	bccspFactory "github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric-sdk-go/fabric-client/events"
 	"github.com/hyperledger/fabric-sdk-go/config"
@@ -24,8 +23,6 @@ type OcmsApp struct {
 	client          	fabricClient.Client
 	caClient        	fabricCAClient.Services
 	chainCodeID		string
-	chainCodePath		string
-	chainCodeVersion	string
 	adminUser      	 	fabricClient.User
 	connectEventHub 	bool
 	eventHub        	events.EventHub
@@ -46,8 +43,6 @@ func (app *OcmsApp) initConfig() error{
 }
 
 func (app *OcmsApp) setup() error{
-	// Get Client
-	client := fabricClient.NewClient()
 	err := bccspFactory.InitFactories(&bccspFactory.FactoryOpts{
 		ProviderName: "SW",
 		SwOpts: &bccspFactory.SwOpts{
@@ -62,13 +57,12 @@ func (app *OcmsApp) setup() error{
 	if err != nil {
 		return errors.New("Failed getting ephemeral software-based BCCSP [%s]"+ err.Error())
 	}
-	cryptoSuite := bccspFactory.GetDefault()
-	client.SetCryptoSuite(cryptoSuite)
-	stateStore, err := kvs.CreateNewFileKeyValueStore(os.Getenv("OCMSPATH")+"/fixtures/enroll_user")
+
+	// Get client
+	client, err := fcUtil.GetClient("admin", "adminpw", "fixtures/enroll_user")
 	if err != nil {
-		return errors.New("CreateNewFileKeyValueStore return error[%s]"+ err.Error())
+		return fmt.Errorf("Create client failed: %v", err)
 	}
-	client.SetStateStore(stateStore)
 	app.client = client
 
 	// Get clientCa
@@ -90,6 +84,7 @@ func (app *OcmsApp) setup() error{
 		return fmt.Errorf("CreateAndJoinChannel return error: %v", err)
 	}
 
+	// Get envenHub
 	eventHub, err := getEventHub()
 	if err != nil {
 		return err
@@ -142,7 +137,7 @@ func (app *OcmsApp) getUser(username, password string) (fabricClient.User, error
 		if err != nil {
 			return user, errors.New("pem Decode return error: %v"+ err.Error())
 		}
-		user = fabricClient.NewUser("admin")
+		user = fabricClient.NewUser(username)
 		k, err := app.client.GetCryptoSuite().KeyImport(keyPem.Bytes, &bccsp.ECDSAPrivateKeyImportOpts{Temporary: false})
 		if err != nil {
 			return user, errors.New("KeyImport return error: %v"+ err.Error())
@@ -153,7 +148,7 @@ func (app *OcmsApp) getUser(username, password string) (fabricClient.User, error
 		if err != nil {
 			return user, errors.New("client.SetUserContext return error: %v"+ err.Error())
 		}
-		user, err = app.client.GetUserContext("admin")
+		user, err = app.client.GetUserContext(username)
 		if err != nil {
 			return user, errors.New("client.GetUserContext return error: %v"+ err.Error())
 		}
@@ -202,25 +197,51 @@ func (app *OcmsApp) revokeUser(adminUser fabricClient.User, userName string)erro
 
 
 func (app *OcmsApp) InstallAndInstantiateCC() error {
+	chainCodePath  := "github.com/consentv2"
+	chainCodeVersion := "v0"
+
 	if app.chainCodeID == "" {
 		app.chainCodeID = fcUtil.GenerateRandomID()
 	}
-	if err := app.InstallCC(nil); err != nil {
+	if err := app.InstallCC(chainCodePath, chainCodeVersion, nil); err != nil {
 		return err
 	}
 	var args []string
-	return app.InstantiateCC(args)
+	return app.InstantiateCC(chainCodePath, chainCodeVersion, args)
 }
 
-func (app *OcmsApp) InstantiateCC(args []string) error {
-	if err := fcUtil.SendInstantiateCC(app.chain, app.chainCodeID, app.chainID, args, app.chainCodePath, app.chainCodeVersion, []fabricClient.Peer{app.chain.GetPrimaryPeer()}, app.eventHub); err != nil {
+func (app *OcmsApp) InstallAndInstantiateExampleCC() error {
+
+	chainCodePath := "github.com/example_cc"
+	chainCodeVersion := "v0"
+
+	if app.chainCodeID == "" {
+		app.chainCodeID = fcUtil.GenerateRandomID()
+	}
+
+	if err := app.InstallCC(chainCodePath, chainCodeVersion, nil); err != nil {
+		return err
+	}
+
+	var args []string
+	args = append(args, "init")
+	args = append(args, "a")
+	args = append(args, "100")
+	args = append(args, "b")
+	args = append(args, "200")
+
+	return app.InstantiateCC(chainCodePath, chainCodeVersion, args)
+}
+
+func (app *OcmsApp) InstantiateCC(chainCodePath, chainCodeVersion string, args []string) error {
+	if err := fcUtil.SendInstantiateCC(app.chain, app.chainCodeID, app.chainID, args, chainCodePath, chainCodeVersion, []fabricClient.Peer{app.chain.GetPrimaryPeer()}, app.eventHub); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (app *OcmsApp) InstallCC(chaincodePackage []byte) error {
-	if err := fcUtil.SendInstallCC(app.chain, app.chainCodeID, app.chainCodePath, app.chainCodeVersion, chaincodePackage, app.chain.GetPeers(), app.GetDeployPath()); err != nil {
+func (app *OcmsApp) InstallCC(chainCodePath, chainCodeVersion string, chaincodePackage []byte) error {
+	if err := fcUtil.SendInstallCC(app.chain, app.chainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, app.chain.GetPeers(), app.GetDeployPath()); err != nil {
 		return fmt.Errorf("SendInstallProposal return error: %v", err)
 	}
 	return nil
@@ -230,7 +251,7 @@ func (app *OcmsApp) InstallCC(chaincodePackage []byte) error {
 // GetDeployPath
 func (app *OcmsApp) GetDeployPath() string {
 	pwd, _ := os.Getwd()
-	return path.Join(pwd, os.Getenv("OCMSPATH")+"/fixtures")
+	return path.Join(pwd, "fixtures")
 }
 
 // getEventHub initilizes the event hub
@@ -255,24 +276,22 @@ func getEventHub() (events.EventHub, error) {
 
 
 func main() {
-	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
-	if err != nil {
-		log.Fatal(err)
-	}
-	os.Setenv("OCMSPATH", dir)
-	os.Setenv("OCMSPATH", "/home/blockchain/src/github.com/pascallimeux/ocmsv2")
-	fmt.Println("OCMSPATH:", os.Getenv("OCMSPATH"))
+	//dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//os.Setenv("OCMSPATH", dir)
+	//os.Setenv("OCMSPATH", "/opt/gopath/src/github.com/pascallimeux/ocmsV2")
+	//fmt.Println("OCMSPATH:", os.Getenv("OCMSPATH"))
 
 	app := OcmsApp{
-		configFile:      	os.Getenv("OCMSPATH")+"/fixtures/config/config.yaml",
-		channelConfig:   	os.Getenv("OCMSPATH")+"/fixtures/channel/testchannel.tx",
+		configFile:      	"fixtures/config/config.yaml",
+		channelConfig:   	"fixtures/channel/testchannel.tx",
 		chainID:         	"testchannel",
-		chainCodeVersion:	"v0",
-		chainCodePath:		"github.com/consentv2",
 		connectEventHub: true,
 	}
 
-	err = app.initConfig()
+	err := app.initConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -280,11 +299,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	/*adminUser, err := app.getUser("admin", "adminpw")
+	adminUser, err := app.getUser("admin", "adminpw")
 	if err != nil {
 		log.Fatal(err)
 	}
-	username :="pascal14"
+	username :="pascal8"
 	enrolmentSecret, err := app.registerUser(adminUser, username)
 	if err != nil {
 		log.Fatal(err)
@@ -292,18 +311,27 @@ func main() {
 	err = app.enrollUser(username, enrolmentSecret)
 	if err != nil {
 		log.Fatal(err)
-	}*/
+	}
+	err = app.revokeUser(adminUser, username)
+	if err != nil {
+		log.Fatal(err)
+	}
 	//_,err = app.getUser(username, enrolmentSecret)
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
-	//err = app.revokeUser(adminUser, username)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	err = app.InstallAndInstantiateCC()
+
+	err = app.InstallAndInstantiateExampleCC()
+	//err = app.InstallAndInstantiateCC()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+
+	// voir pourquoi le SC consent declenche un PB de MSP...
+	// comment fonctionne register enroll revoke
+	// comment supprimer un user register
+	// probleme de path pour les fichiers de config et certificats
+
 
 }
