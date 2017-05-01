@@ -13,6 +13,7 @@ import (
 	"github.com/hyperledger/fabric-sdk-go/config"
 	fcUtil "github.com/hyperledger/fabric-sdk-go/fabric-client/helpers"
 	"errors"
+	"time"
 	"io/ioutil"
 	"encoding/pem"
 	"github.com/hyperledger/fabric/bccsp"
@@ -66,12 +67,12 @@ func (app *OcmsApp) setup() error{
 	app.client = client
 
 	// Get clientCa
-	caClient, err := fabricCAClient.NewFabricCAClient()
+	/*caClient, err := fabricCAClient.NewFabricCAClient()
 	if err != nil {
 		return errors.New("NewFabricCAClient return error: %v"+ err.Error())
 	}
 	app.caClient = caClient
-
+*/
 	// Get chain
 	chain, err := fcUtil.GetChain(app.client, app.chainID)
 	if err != nil {
@@ -233,6 +234,16 @@ func (app *OcmsApp) InstallAndInstantiateExampleCC() error {
 	return app.InstantiateCC(chainCodePath, chainCodeVersion, args)
 }
 
+func (app *OcmsApp) QueryAssetExample() (string, error) {
+
+	var args []string
+	args = append(args, "invoke")
+	args = append(args, "query")
+	args = append(args, "b")
+
+	return app.Query(app.chainID, app.chainCodeID, args)
+}
+
 func (app *OcmsApp) InstantiateCC(chainCodePath, chainCodeVersion string, args []string) error {
 	if err := fcUtil.SendInstantiateCC(app.chain, app.chainCodeID, app.chainID, args, chainCodePath, chainCodeVersion, []fabricClient.Peer{app.chain.GetPrimaryPeer()}, app.eventHub); err != nil {
 		return err
@@ -299,11 +310,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	adminUser, err := app.getUser("admin", "adminpw")
+	/*adminUser, err := app.getUser("admin", "adminpw")
 	if err != nil {
 		log.Fatal(err)
 	}
-	username :="pascal8"
+	username :="pascal10"
 	enrolmentSecret, err := app.registerUser(adminUser, username)
 	if err != nil {
 		log.Fatal(err)
@@ -315,23 +326,118 @@ func main() {
 	err = app.revokeUser(adminUser, username)
 	if err != nil {
 		log.Fatal(err)
-	}
+	}*/
 	//_,err = app.getUser(username, enrolmentSecret)
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
 
-	err = app.InstallAndInstantiateExampleCC()
-	//err = app.InstallAndInstantiateCC()
+	//err = app.InstallAndInstantiateExampleCC()
+	err = app.InstallAndInstantiateCC()
 	if err != nil {
-		log.Fatal(err)
+		fmt.Errorf("Install and instanciate return error: %v", err)
 	}
 
+	//time.Sleep(time.Duration(5)*time.Second)
 
+	/*value, err := app.QueryAssetExample()
+	if err != nil {
+		fmt.Errorf("getQueryValue return error: %v", err)
+	}
+	fmt.Printf("*** QueryValue before invoke %s\n", value)
+*/
+
+	version, err := app.GetVersion()
+	if err != nil {
+		fmt.Errorf("Get version return error: %v", err)
+	}
+	fmt.Println("version: "+version)
+/*
+	txID, err := app.CreateConsent()
+	if err != nil {
+		fmt.Errorf("Create consent return error: %v", err)
+	}
+	fmt.Println("txID: "+txID)
+
+	consents, err := app.GetConsents()
+	if err != nil {
+		fmt.Errorf("Get consents return error: %v", err)
+	}
+	fmt.Println("consents: "+consents)
+*/
 	// voir pourquoi le SC consent declenche un PB de MSP...
 	// comment fonctionne register enroll revoke
 	// comment supprimer un user register
 	// probleme de path pour les fichiers de config et certificats
+}
+const (
+	APPID1      = "APP4TESTS1"
+	OWNERID1    = "owner1"
+	CONSUMERID1 = "consumer1"
+	DATATYPE1   = "type1"
+	DATAACCESS1 = "access1"
+)
 
+func (app *OcmsApp) CreateConsent() (string, error) {
+	var args []string
+	args = append(args, "invoke")
+	args = append(args, "postconsent")
+	args = append(args, APPID1)
+	args = append(args, OWNERID1)
+	args = append(args, CONSUMERID1)
+	args = append(args, DATATYPE1)
+	args = append(args, DATAACCESS1)
+	args = append(args, getStringDateNow(0))
+	args = append(args, getStringDateNow(7))
 
+	transactionProposalResponse, txID, err := fcUtil.CreateAndSendTransactionProposal(app.chain, app.chainCodeID, app.chainID, args, []fabricClient.Peer{app.chain.GetPrimaryPeer()})
+	if err != nil {
+		return "", fmt.Errorf("CreateAndSendTransactionProposal return error: %v", err)
+	}
+
+	// Register for commit event
+	done, fail := fcUtil.RegisterTxEvent(txID, app.eventHub)
+
+	_, err = fcUtil.CreateAndSendTransaction(app.chain, transactionProposalResponse)
+	if err != nil {
+		return "", fmt.Errorf("CreateAndSendTransaction return error: %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-fail:
+		return "", fmt.Errorf("invoke Error received from eventhub for txid(%s) error(%v)", txID, fail)
+	case <-time.After(time.Second * 30):
+		return "", fmt.Errorf("invoke Didn't receive block event for txid(%s)", txID)
+	}
+	return txID, nil
+}
+
+func (app *OcmsApp) GetConsents() (string, error) {
+	var args []string
+	args = append(args, "invoke")
+	args = append(args, "getconsents")
+	args = append(args, APPID1)
+	return app.Query(app.chainID, app.chainCodeID, args)
+}
+
+func (app *OcmsApp) GetVersion() (string, error) {
+	var args []string
+	args = append(args, "invoke")
+	args = append(args, "getversion")
+	return app.Query(app.chainID, app.chainCodeID, args)
+}
+
+func (app *OcmsApp) Query(chainID string, chainCodeID string, args []string) (string, error) {
+
+	transactionProposalResponses, _, err := fcUtil.CreateAndSendTransactionProposal(app.chain, chainCodeID, chainID, args, []fabricClient.Peer{app.chain.GetPrimaryPeer()})
+	if err != nil {
+		return "", fmt.Errorf("CreateAndSendTransactionProposal return error: %v", err)
+	}
+	return string(transactionProposalResponses[0].GetResponsePayload()), nil
+}
+
+func getStringDateNow(nbdaysafter time.Duration) string{
+	t := time.Now().Add(nbdaysafter * 24 * time.Hour)
+	return t.Format("2006-01-02")
 }
