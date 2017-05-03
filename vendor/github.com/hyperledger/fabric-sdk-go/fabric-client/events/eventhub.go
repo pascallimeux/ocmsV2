@@ -22,11 +22,16 @@ package events
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sync"
 
+	"time"
+
 	"github.com/golang/protobuf/proto"
 	consumer "github.com/hyperledger/fabric-sdk-go/fabric-client/events/consumer"
+	cnsmr "github.com/hyperledger/fabric/events/consumer"
+
 	"github.com/hyperledger/fabric/core/ledger/util"
 	common "github.com/hyperledger/fabric/protos/common"
 	pb "github.com/hyperledger/fabric/protos/peer"
@@ -41,16 +46,24 @@ type EventHub interface {
 	SetPeerAddr(peerURL string, certificate string, serverHostOverride string)
 	IsConnected() bool
 	Connect() error
+	Disconnect()
 	RegisterChaincodeEvent(ccid string, eventname string, callback func(*ChaincodeEvent)) *ChainCodeCBE
 	UnregisterChaincodeEvent(cbe *ChainCodeCBE)
 	RegisterTxEvent(txID string, callback func(string, error))
 	UnregisterTxEvent(txID string)
+	RegisterBlockEvent(callback func(*common.Block))
+	UnregisterBlockEvent(callback func(*common.Block))
 }
 
 // The EventHubExt interface allows extensions of the SDK to add functionality to EventHub overloads.
 type EventHubExt interface {
 	SetInterests(block bool)
 	AddChaincodeInterest(ChaincodeID string, EventName string)
+}
+
+// eventClientFactory creates an EventsClient instance
+type eventClientFactory interface {
+	newEventsClient(peerAddress string, certificate string, serverHostOverride string, regTimeout time.Duration, adapter cnsmr.EventAdapter) (consumer.EventsClient, error)
 }
 
 type eventHub struct {
@@ -74,6 +87,8 @@ type eventHub struct {
 	connected bool
 	// List of events client is interested in
 	interestedEvents []*pb.Interest
+	// Factory that creates EventsClient
+	eventsClientFactory eventClientFactory
 }
 
 // ChaincodeEvent contains the current event data for the event handler
@@ -82,6 +97,7 @@ type ChaincodeEvent struct {
 	TxId        string
 	EventName   string
 	Payload     []byte
+	ChannelID   string
 }
 
 // ChainCodeCBE ...
@@ -98,16 +114,29 @@ type ChainCodeCBE struct {
 	CallbackFunc func(*ChaincodeEvent)
 }
 
+// consumerClientFactory is the default implementation oif the eventClientFactory
+type consumerClientFactory struct{}
+
+func (ccf *consumerClientFactory) newEventsClient(peerAddress string, certificate string, serverHostOverride string, regTimeout time.Duration, adapter cnsmr.EventAdapter) (consumer.EventsClient, error) {
+	return consumer.NewEventsClient(peerAddress, certificate, serverHostOverride, regTimeout, adapter)
+}
+
 // NewEventHub ...
 func NewEventHub() EventHub {
 	chaincodeRegistrants := make(map[string][]*ChainCodeCBE)
 	blockRegistrants := make([]func(*common.Block), 0)
 	txRegistrants := make(map[string]func(string, error))
 
-	eventHub := &eventHub{chaincodeRegistrants: chaincodeRegistrants, blockRegistrants: blockRegistrants, txRegistrants: txRegistrants, interestedEvents: nil}
+	eventHub := &eventHub{
+		chaincodeRegistrants: chaincodeRegistrants,
+		blockRegistrants:     blockRegistrants,
+		txRegistrants:        txRegistrants,
+		interestedEvents:     nil,
+		eventsClientFactory:  &consumerClientFactory{},
+	}
 
-	// default to listening for block events
-	eventHub.SetInterests(true)
+	// register default transaction callback
+	eventHub.RegisterBlockEvent(eventHub.txCallback)
 
 	return eventHub
 }
@@ -117,9 +146,64 @@ func (eventHub *eventHub) SetInterests(block bool) {
 	eventHub.mtx.Lock()
 	defer eventHub.mtx.Unlock()
 
-	eventHub.interestedEvents = nil
+	eventHub.interestedEvents = make([]*pb.Interest, 0)
+	eventHub.blockRegistrants = make([]func(*common.Block), 0)
+
 	if block {
+		eventHub.blockRegistrants = append(eventHub.blockRegistrants, eventHub.txCallback)
 		eventHub.interestedEvents = append(eventHub.interestedEvents, &pb.Interest{EventType: pb.EventType_BLOCK})
+	}
+}
+
+// Disconnect disconnects from peer event source
+func (eventHub *eventHub) Disconnect() {
+	eventHub.mtx.Lock()
+	defer eventHub.mtx.Unlock()
+
+	if !eventHub.connected {
+		return
+	}
+
+	// Unregister interests with server and stop the stream
+	eventHub.client.UnregisterAsync(eventHub.interestedEvents)
+	eventHub.client.Stop()
+	eventHub.connected = false
+}
+
+// RegisterBlockEvent - register callback function for block events
+func (eventHub *eventHub) RegisterBlockEvent(callback func(*common.Block)) {
+	eventHub.mtx.Lock()
+	defer eventHub.mtx.Unlock()
+
+	eventHub.blockRegistrants = append(eventHub.blockRegistrants, callback)
+	if len(eventHub.blockRegistrants) == 1 {
+		eventHub.interestedEvents = append(eventHub.interestedEvents, &pb.Interest{EventType: pb.EventType_BLOCK})
+	}
+}
+
+// UnregisterBlockEvent unregister callback for block event
+func (eventHub *eventHub) UnregisterBlockEvent(callback func(*common.Block)) {
+	eventHub.mtx.Lock()
+	defer eventHub.mtx.Unlock()
+
+	f1 := reflect.ValueOf(callback)
+
+	for i := range eventHub.blockRegistrants {
+		f2 := reflect.ValueOf(eventHub.blockRegistrants[i])
+		if f1.Pointer() == f2.Pointer() {
+			eventHub.blockRegistrants = append(eventHub.blockRegistrants[:i], eventHub.blockRegistrants[i+1:]...)
+			break
+		}
+	}
+
+	if len(eventHub.blockRegistrants) < 1 {
+		blockEventInterest := pb.Interest{EventType: pb.EventType_BLOCK}
+		eventHub.client.UnregisterAsync([]*pb.Interest{&blockEventInterest})
+		for i, v := range eventHub.interestedEvents {
+			if *v == blockEventInterest {
+				eventHub.interestedEvents = append(eventHub.interestedEvents[:i], eventHub.interestedEvents[i+1:]...)
+			}
+		}
 	}
 }
 
@@ -167,24 +251,31 @@ func (eventHub *eventHub) IsConnected() bool {
  * Establishes connection with peer event source<p>
  */
 func (eventHub *eventHub) Connect() error {
-	if eventHub.peerAddr == "" {
-		return fmt.Errorf("eventHub.peerAddr is empty")
-	}
 
 	eventHub.mtx.Lock()
 	defer eventHub.mtx.Unlock()
 
-	eventHub.blockRegistrants = make([]func(*common.Block), 0)
-	eventHub.blockRegistrants = append(eventHub.blockRegistrants, eventHub.txCallback)
-
-	eventsClient, _ := consumer.NewEventsClient(eventHub.peerAddr, eventHub.peerTLSCertificate, eventHub.peerTLSServerHostOverride, 5, eventHub)
-	if err := eventsClient.Start(); err != nil {
-		eventsClient.Stop()
-		return fmt.Errorf("Error from eventsClient.Start (%s)", err.Error())
-
+	if eventHub.connected {
+		logger.Debugf("Nothing to do - EventHub already connected")
+		return nil
 	}
+
+	if eventHub.peerAddr == "" {
+		return fmt.Errorf("eventHub.peerAddr is empty")
+	}
+
+	if eventHub.client == nil {
+		eventsClient, _ := eventHub.eventsClientFactory.newEventsClient(eventHub.peerAddr, eventHub.peerTLSCertificate, eventHub.peerTLSServerHostOverride, 5, eventHub)
+		eventHub.client = eventsClient
+	}
+
+	if err := eventHub.client.Start(); err != nil {
+		eventHub.client.Stop()
+		return fmt.Errorf("Error from eventsClient.Start (%s)", err.Error())
+	}
+
 	eventHub.connected = true
-	eventHub.client = eventsClient
+
 	return nil
 }
 
@@ -195,22 +286,19 @@ func (eventHub *eventHub) GetInterestedEvents() ([]*pb.Interest, error) {
 
 //Recv implements consumer.EventAdapter interface for receiving events
 func (eventHub *eventHub) Recv(msg *pb.Event) (bool, error) {
-	eventHub.mtx.RLock()
-	defer eventHub.mtx.RUnlock()
-
 	switch msg.Event.(type) {
 	case *pb.Event_Block:
 		blockEvent := msg.Event.(*pb.Event_Block)
 		logger.Debugf("Recv blockEvent:%v\n", blockEvent)
-		for _, v := range eventHub.blockRegistrants {
+		for _, v := range eventHub.getBlockRegistrants() {
 			v(blockEvent.Block)
 		}
 
 		for _, tdata := range blockEvent.Block.Data.Data {
-			if ccEvent, err := getChainCodeEvent(tdata); err != nil {
+			if ccEvent, channelID, err := getChainCodeEvent(tdata); err != nil {
 				logger.Warningf("getChainCodeEvent return error: %v\n", err)
 			} else if ccEvent != nil {
-				eventHub.notifyChaincodeRegistrants(ccEvent, true)
+				eventHub.notifyChaincodeRegistrants(channelID, ccEvent, true)
 			}
 		}
 		return true, nil
@@ -219,7 +307,7 @@ func (eventHub *eventHub) Recv(msg *pb.Event) (bool, error) {
 		logger.Debugf("Recv ccEvent:%v\n", ccEvent)
 
 		if ccEvent != nil {
-			eventHub.notifyChaincodeRegistrants(ccEvent.ChaincodeEvent, false)
+			eventHub.notifyChaincodeRegistrants("", ccEvent.ChaincodeEvent, false)
 		}
 		return true, nil
 	default:
@@ -227,14 +315,15 @@ func (eventHub *eventHub) Recv(msg *pb.Event) (bool, error) {
 	}
 }
 
-// Disconnect implements consumer.EventAdapter interface for receiving events
-/**
- * Disconnects peer event source<p>
- */
+// Disconnected implements consumer.EventAdapter interface for receiving events
 func (eventHub *eventHub) Disconnected(err error) {
+	eventHub.mtx.Lock()
+	defer eventHub.mtx.Unlock()
+
 	if !eventHub.connected {
 		return
 	}
+
 	eventHub.client.Stop()
 	eventHub.connected = false
 }
@@ -282,15 +371,18 @@ func (eventHub *eventHub) UnregisterChaincodeEvent(cbe *ChainCodeCBE) {
 		logger.Debugf("No event registration for ccid %s \n", cbe.CCID)
 		return
 	}
+
 	for i, v := range cbeArray {
-		if v.EventNameFilter == cbe.EventNameFilter {
-			cbeArray = append(cbeArray[:i], cbeArray[i+1:]...)
+		if v == cbe {
+			newCbeArray := append(cbeArray[:i], cbeArray[i+1:]...)
+			if len(newCbeArray) <= 0 {
+				delete(eventHub.chaincodeRegistrants, cbe.CCID)
+			} else {
+				eventHub.chaincodeRegistrants[cbe.CCID] = newCbeArray
+			}
+			break
 		}
 	}
-	if len(cbeArray) <= 0 {
-		delete(eventHub.chaincodeRegistrants, cbe.CCID)
-	}
-
 }
 
 // RegisterTxEvent ...
@@ -330,16 +422,16 @@ func (eventHub *eventHub) UnregisterTxEvent(txID string) {
 func (eventHub *eventHub) txCallback(block *common.Block) {
 	logger.Debugf("txCallback block=%v\n", block)
 
-	eventHub.mtx.RLock()
-	defer eventHub.mtx.RUnlock()
 	txFilter := util.TxValidationFlags(block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER])
 	for i, v := range block.Data.Data {
 		if env, err := utils.GetEnvelopeFromBlock(v); err != nil {
+			logger.Errorf("error extracting Envelope from block: %v\n", err)
 			return
 		} else if env != nil {
 			// get the payload from the envelope
 			payload, err := utils.GetPayload(env)
 			if err != nil {
+				logger.Errorf("error extracting Payload from envelope: %v\n", err)
 				return
 			}
 
@@ -347,10 +439,11 @@ func (eventHub *eventHub) txCallback(block *common.Block) {
 			channelHeader := &common.ChannelHeader{}
 			err = proto.Unmarshal(channelHeaderBytes, channelHeader)
 			if err != nil {
+				logger.Errorf("error extracting ChannelHeader from payload: %v\n", err)
 				return
 			}
 
-			callback := eventHub.txRegistrants[channelHeader.TxId]
+			callback := eventHub.getTXRegistrant(channelHeader.TxId)
 			if callback != nil {
 				if txFilter.IsInvalid(i) {
 					callback(channelHeader.TxId, fmt.Errorf("Received invalid transaction from channel %s\n", channelHeader.ChannelId))
@@ -358,66 +451,105 @@ func (eventHub *eventHub) txCallback(block *common.Block) {
 				} else {
 					callback(channelHeader.TxId, nil)
 				}
+			} else {
+				logger.Debugf("No callback registered for TxID: %s\n", channelHeader.TxId)
 			}
 		}
 	}
 }
 
+func (eventHub *eventHub) getBlockRegistrants() []func(*common.Block) {
+	eventHub.mtx.RLock()
+	defer eventHub.mtx.RUnlock()
+
+	// Return a clone of the array to avoid race conditions
+	clone := make([]func(*common.Block), len(eventHub.blockRegistrants))
+	for i, registrant := range eventHub.blockRegistrants {
+		clone[i] = registrant
+	}
+	return clone
+}
+
+func (eventHub *eventHub) getChaincodeRegistrants(chaincodeID string) []*ChainCodeCBE {
+	eventHub.mtx.RLock()
+	defer eventHub.mtx.RUnlock()
+
+	registrants, ok := eventHub.chaincodeRegistrants[chaincodeID]
+	if !ok {
+		return nil
+	}
+
+	// Return a clone of the array to avoid race conditions
+	clone := make([]*ChainCodeCBE, len(registrants))
+	for i, registrants := range registrants {
+		clone[i] = registrants
+	}
+	return clone
+}
+
+func (eventHub *eventHub) getTXRegistrant(txID string) func(string, error) {
+	eventHub.mtx.RLock()
+	defer eventHub.mtx.RUnlock()
+	return eventHub.txRegistrants[txID]
+}
+
 // getChainCodeEvents parses block events for chaincode events associated with individual transactions
-func getChainCodeEvent(tdata []byte) (*pb.ChaincodeEvent, error) {
+func getChainCodeEvent(tdata []byte) (event *pb.ChaincodeEvent, channelID string, err error) {
 
 	if tdata == nil {
-		return nil, errors.New("Cannot extract payload from nil transaction")
+		return nil, "", errors.New("Cannot extract payload from nil transaction")
 	}
 
 	if env, err := utils.GetEnvelopeFromBlock(tdata); err != nil {
-		return nil, fmt.Errorf("Error getting tx from block(%s)", err)
+		return nil, "", fmt.Errorf("Error getting tx from block(%s)", err)
 	} else if env != nil {
 		// get the payload from the envelope
 		payload, err := utils.GetPayload(env)
 		if err != nil {
-			return nil, fmt.Errorf("Could not extract payload from envelope, err %s", err)
+			return nil, "", fmt.Errorf("Could not extract payload from envelope, err %s", err)
 		}
 
 		channelHeaderBytes := payload.Header.ChannelHeader
 		channelHeader := &common.ChannelHeader{}
 		err = proto.Unmarshal(channelHeaderBytes, channelHeader)
 		if err != nil {
-			return nil, fmt.Errorf("Could not extract channel header from envelope, err %s", err)
+			return nil, "", fmt.Errorf("Could not extract channel header from envelope, err %s", err)
 		}
+
+		channelID := channelHeader.ChannelId
 
 		// Chaincode events apply to endorser transaction only
 		if common.HeaderType(channelHeader.Type) == common.HeaderType_ENDORSER_TRANSACTION {
 			tx, err := utils.GetTransaction(payload.Data)
 			if err != nil {
-				return nil, fmt.Errorf("Error unmarshalling transaction payload for block event: %s", err)
+				return nil, "", fmt.Errorf("Error unmarshalling transaction payload for block event: %s", err)
 			}
 			chaincodeActionPayload, err := utils.GetChaincodeActionPayload(tx.Actions[0].Payload)
 			if err != nil {
-				return nil, fmt.Errorf("Error unmarshalling transaction action payload for block event: %s", err)
+				return nil, "", fmt.Errorf("Error unmarshalling transaction action payload for block event: %s", err)
 			}
 			propRespPayload, err := utils.GetProposalResponsePayload(chaincodeActionPayload.Action.ProposalResponsePayload)
 			if err != nil {
-				return nil, fmt.Errorf("Error unmarshalling proposal response payload for block event: %s", err)
+				return nil, "", fmt.Errorf("Error unmarshalling proposal response payload for block event: %s", err)
 			}
 			caPayload, err := utils.GetChaincodeAction(propRespPayload.Extension)
 			if err != nil {
-				return nil, fmt.Errorf("Error unmarshalling chaincode action for block event: %s", err)
+				return nil, "", fmt.Errorf("Error unmarshalling chaincode action for block event: %s", err)
 			}
 			ccEvent, err := utils.GetChaincodeEvents(caPayload.Events)
 
 			if ccEvent != nil {
-				return ccEvent, nil
+				return ccEvent, channelID, nil
 			}
 		}
 	}
-	return nil, nil
+	return nil, "", nil
 }
 
 // Utility function to fire callbacks for chaincode registrants
-func (eventHub *eventHub) notifyChaincodeRegistrants(ccEvent *pb.ChaincodeEvent, patternMatch bool) {
+func (eventHub *eventHub) notifyChaincodeRegistrants(channelID string, ccEvent *pb.ChaincodeEvent, patternMatch bool) {
 
-	cbeArray := eventHub.chaincodeRegistrants[ccEvent.ChaincodeId]
+	cbeArray := eventHub.getChaincodeRegistrants(ccEvent.ChaincodeId)
 	if len(cbeArray) <= 0 {
 		logger.Debugf("No event registration for ccid %s \n", ccEvent.ChaincodeId)
 	}
@@ -435,6 +567,7 @@ func (eventHub *eventHub) notifyChaincodeRegistrants(ccEvent *pb.ChaincodeEvent,
 					TxId:        ccEvent.TxId,
 					EventName:   ccEvent.EventName,
 					Payload:     ccEvent.Payload,
+					ChannelID:   channelID,
 				})
 			}
 		}

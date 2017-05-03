@@ -1,3 +1,13 @@
+
+git clone https://gerrit.hyperledger.org/r/fabric-sdk-go
+git clone https://github.com/pascallimeux/ocmsV2.git
+go get -u github.com/kardianos/govendor
+rm -R vendor
+govendor init
+govendor add +external
+
+
+
 sudo rm -R /tmp/
 
 cd /opt/gopath/src/github.com/hyperledger/fabric-sdk-go/test/fixtures/

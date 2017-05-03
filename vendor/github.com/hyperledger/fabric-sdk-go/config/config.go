@@ -22,6 +22,7 @@ package config
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,15 +33,17 @@ import (
 	"github.com/spf13/viper"
 )
 
-// PeerConfig ...
+// PeerConfig A set of configurations required to connect to a Fabric peer
 type PeerConfig struct {
-	Host                  string
-	Port                  string
-	EventHost             string
-	EventPort             string
-	TLSCertificate        string
-	TLSServerHostOverride string
-	Primary               bool
+	Host      string
+	Port      int
+	EventHost string
+	EventPort int
+	Primary   bool
+	TLS       struct {
+		Certificate        string
+		ServerHostOverride string
+	}
 }
 
 var myViper = viper.New()
@@ -49,9 +52,21 @@ var format = logging.MustStringFormatter(
 	`%{color}%{time:15:04:05.000} [%{module}] %{level:.4s} : %{color:reset} %{message}`,
 )
 
+const cmdRoot = "fabric_sdk"
+
 // InitConfig ...
 // initConfig reads in config file
 func InitConfig(configFile string) error {
+	return InitConfigWithCmdRoot(configFile, cmdRoot)
+}
+
+// InitConfigWithCmdRoot reads in a config file and allows the
+// environment variable prefixed to be specified
+func InitConfigWithCmdRoot(configFile string, cmdRootPrefix string) error {
+	myViper.SetEnvPrefix(cmdRootPrefix)
+	myViper.AutomaticEnv()
+	replacer := strings.NewReplacer(".", "_")
+	myViper.SetEnvKeyReplacer(replacer)
 
 	if configFile != "" {
 		// create new viper
@@ -120,59 +135,27 @@ func GetFabricClientViper() *viper.Viper {
 	return myViper
 }
 
-// GetPeersConfig ...
-func GetPeersConfig() []PeerConfig {
+// GetPeersConfig Retrieves the fabric peers from the config file provided
+func GetPeersConfig() ([]PeerConfig, error) {
 	peersConfig := []PeerConfig{}
-	peers := myViper.GetStringMap("client.peers")
-	for key, value := range peers {
-		mm, ok := value.(map[string]interface{})
-		var host string
-		var port int
-		var primary bool
-		var eventHost string
-		var eventPort int
-		var tlsCertificate string
-		var tlsServerHostOverride string
-
-		if ok {
-			host, _ = mm["host"].(string)
-			port, _ = mm["port"].(int)
-			primary, _ = mm["primary"].(bool)
-			eventHost, _ = mm["event_host"].(string)
-			eventPort, _ = mm["event_port"].(int)
-			tlsCertificate, _ = mm["tls"].(map[string]interface{})["certificate"].(string)
-			tlsServerHostOverride, _ = mm["tls"].(map[string]interface{})["serverhostoverride"].(string)
-
-		} else {
-			mm1 := value.(map[interface{}]interface{})
-			host, _ = mm1["host"].(string)
-			port, _ = mm1["port"].(int)
-			primary, _ = mm1["primary"].(bool)
-			eventHost, _ = mm1["event_host"].(string)
-			eventPort, _ = mm1["event_port"].(int)
-			tlsCertificate, _ = mm1["tls"].(map[string]interface{})["certificate"].(string)
-			tlsServerHostOverride, _ = mm1["tls"].(map[string]interface{})["serverhostoverride"].(string)
-
-		}
-
-		p := PeerConfig{Host: host, Port: strconv.Itoa(port), EventHost: eventHost, EventPort: strconv.Itoa(eventPort),
-			TLSCertificate: tlsCertificate, TLSServerHostOverride: tlsServerHostOverride, Primary: primary}
-		if p.Host == "" {
-			panic(fmt.Sprintf("host key not exist or empty for %s", key))
-		}
-		if p.Port == "" {
-			panic(fmt.Sprintf("port key not exist or empty for %s", key))
-		}
-
-		if IsTLSEnabled() && p.TLSCertificate == "" {
-			panic(fmt.Sprintf("tls.certificate not exist or empty for %s", key))
-		}
-
-		p.TLSCertificate = strings.Replace(p.TLSCertificate, "$GOPATH", os.Getenv("GOPATH"), -1)
-		peersConfig = append(peersConfig, p)
+	err := myViper.UnmarshalKey("client.peers", &peersConfig)
+	if err != nil {
+		return nil, err
 	}
-	return peersConfig
-
+	for index, p := range peersConfig {
+		if p.Host == "" {
+			return nil, fmt.Errorf("host key not exist or empty for peer %d", index)
+		}
+		if p.Port == 0 {
+			return nil, fmt.Errorf("port key not exist or empty for peer %d", index)
+		}
+		if IsTLSEnabled() && p.TLS.Certificate == "" {
+			return nil, fmt.Errorf("tls.certificate not exist or empty for peer %d", index)
+		}
+		peersConfig[index].TLS.Certificate = strings.Replace(p.TLS.Certificate, "$GOPATH",
+			os.Getenv("GOPATH"), -1)
+	}
+	return peersConfig, nil
 }
 
 // IsTLSEnabled ...
@@ -189,7 +172,28 @@ func GetTLSCACertPool(tlsCertificate string) (*x509.CertPool, error) {
 			return nil, err
 		}
 
-		certPool.AddCert(loadCAKey(rawData))
+		cert, err := loadCAKey(rawData)
+		if err != nil {
+			return nil, err
+		}
+
+		certPool.AddCert(cert)
+	}
+
+	return certPool, nil
+}
+
+// GetTLSCACertPoolFromRoots ...
+func GetTLSCACertPoolFromRoots(ordererRootCAs [][]byte) (*x509.CertPool, error) {
+	certPool := x509.NewCertPool()
+
+	for _, root := range ordererRootCAs {
+		cert, err := loadCAKey(root)
+		if err != nil {
+			return nil, err
+		}
+
+		certPool.AddCert(cert)
 	}
 
 	return certPool, nil
@@ -247,12 +251,16 @@ func GetKeyStorePath() string {
 }
 
 // loadCAKey
-func loadCAKey(rawData []byte) *x509.Certificate {
+func loadCAKey(rawData []byte) (*x509.Certificate, error) {
 	block, _ := pem.Decode(rawData)
 
-	pub, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		panic(err)
+	if block != nil {
+		pub, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, errors.New("Failed to parse certificate: " + err.Error())
+		}
+
+		return pub, nil
 	}
-	return pub
+	return nil, errors.New("No pem data found")
 }

@@ -98,12 +98,13 @@ func (app *OcmsApp) setup() error{
 	}
 	app.eventHub = eventHub
 	app.initialized = true
+	fmt.Println("setup OK...")
 	return nil
 }
 
 func (app *OcmsApp) getUser(username, password string) (fabricClient.User, error) {
 	fmt.Println("---Get user %s:"+username)
-	user, err := app.client.GetUserContext(username)
+	user, err := app.client.LoadUserFromStateStore(username)
 
 	if err != nil {
 		return user, errors.New("client.GetUserContext return error: %v"+ err.Error())
@@ -145,11 +146,11 @@ func (app *OcmsApp) getUser(username, password string) (fabricClient.User, error
 		}
 		user.SetPrivateKey(k)
 		user.SetEnrollmentCertificate(cert)
-		err = app.client.SetUserContext(user, false)
+		err = app.client.SaveUserToStateStore(user, false)
 		if err != nil {
 			return user, errors.New("client.SetUserContext return error: %v"+ err.Error())
 		}
-		user, err = app.client.GetUserContext(username)
+		user, err = app.client.LoadUserFromStateStore(username)
 		if err != nil {
 			return user, errors.New("client.GetUserContext return error: %v"+ err.Error())
 		}
@@ -230,7 +231,7 @@ func (app *OcmsApp) InstallAndInstantiateExampleCC() error {
 	args = append(args, "100")
 	args = append(args, "b")
 	args = append(args, "200")
-
+	fmt.Println("Install OK...")
 	return app.InstantiateCC(chainCodePath, chainCodeVersion, args)
 }
 
@@ -252,7 +253,7 @@ func (app *OcmsApp) InstantiateCC(chainCodePath, chainCodeVersion string, args [
 }
 
 func (app *OcmsApp) InstallCC(chainCodePath, chainCodeVersion string, chaincodePackage []byte) error {
-	if err := fcUtil.SendInstallCC(app.chain, app.chainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, app.chain.GetPeers(), app.GetDeployPath()); err != nil {
+	if err := fcUtil.SendInstallCC(app.client, app.chain, app.chainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, app.chain.GetPeers(), app.GetDeployPath()); err != nil {
 		return fmt.Errorf("SendInstallProposal return error: %v", err)
 	}
 	return nil
@@ -269,10 +270,15 @@ func (app *OcmsApp) GetDeployPath() string {
 func getEventHub() (events.EventHub, error) {
 	eventHub := events.NewEventHub()
 	foundEventHub := false
-	for _, p := range config.GetPeersConfig() {
-		if p.EventHost != "" && p.EventPort != "" {
-			fmt.Printf("******* EventHub connect to peer (%s:%s) *******\n", p.EventHost, p.EventPort)
-			eventHub.SetPeerAddr(fmt.Sprintf("%s:%s", p.EventHost, p.EventPort), p.TLSCertificate, p.TLSServerHostOverride)
+	peerConfig, err := config.GetPeersConfig()
+	if err != nil {
+		return nil, fmt.Errorf("Error reading peer config: %v", err)
+	}
+	for _, p := range peerConfig {
+		if p.EventHost != "" && p.EventPort != 0 {
+			fmt.Printf("******* EventHub connect to peer (%s:%d) *******\n", p.EventHost, p.EventPort)
+			eventHub.SetPeerAddr(fmt.Sprintf("%s:%d", p.EventHost, p.EventPort),
+				p.TLS.Certificate, p.TLS.ServerHostOverride)
 			foundEventHub = true
 			break
 		}
@@ -332,22 +338,22 @@ func main() {
 	//	log.Fatal(err)
 	//}
 
-	//err = app.InstallAndInstantiateExampleCC()
-	err = app.InstallAndInstantiateCC()
+	err = app.InstallAndInstantiateExampleCC()
+	//err = app.InstallAndInstantiateCC()
 	if err != nil {
 		fmt.Errorf("Install and instanciate return error: %v", err)
 	}
 
 	//time.Sleep(time.Duration(5)*time.Second)
 
-	/*value, err := app.QueryAssetExample()
+	value, err := app.QueryAssetExample()
 	if err != nil {
 		fmt.Errorf("getQueryValue return error: %v", err)
 	}
 	fmt.Printf("*** QueryValue before invoke %s\n", value)
-*/
 
-	version, err := app.GetVersion()
+
+/*	version, err := app.GetVersion()
 	if err != nil {
 		fmt.Errorf("Get version return error: %v", err)
 	}
@@ -389,8 +395,9 @@ func (app *OcmsApp) CreateConsent() (string, error) {
 	args = append(args, DATAACCESS1)
 	args = append(args, getStringDateNow(0))
 	args = append(args, getStringDateNow(7))
-
-	transactionProposalResponse, txID, err := fcUtil.CreateAndSendTransactionProposal(app.chain, app.chainCodeID, app.chainID, args, []fabricClient.Peer{app.chain.GetPrimaryPeer()})
+	transientDataMap := make(map[string][]byte)
+	transientDataMap["result"] = []byte("TODO change...")
+	transactionProposalResponse, txID, err := fcUtil.CreateAndSendTransactionProposal(app.chain, app.chainCodeID, app.chainID, args, []fabricClient.Peer{app.chain.GetPrimaryPeer()}, transientDataMap)
 	if err != nil {
 		return "", fmt.Errorf("CreateAndSendTransactionProposal return error: %v", err)
 	}
@@ -429,8 +436,9 @@ func (app *OcmsApp) GetVersion() (string, error) {
 }
 
 func (app *OcmsApp) Query(chainID string, chainCodeID string, args []string) (string, error) {
-
-	transactionProposalResponses, _, err := fcUtil.CreateAndSendTransactionProposal(app.chain, chainCodeID, chainID, args, []fabricClient.Peer{app.chain.GetPrimaryPeer()})
+	transientDataMap := make(map[string][]byte)
+	transientDataMap["result"] = []byte("TODO change...")
+	transactionProposalResponses, _, err := fcUtil.CreateAndSendTransactionProposal(app.chain, chainCodeID, chainID, args, []fabricClient.Peer{app.chain.GetPrimaryPeer()}, transientDataMap)
 	if err != nil {
 		return "", fmt.Errorf("CreateAndSendTransactionProposal return error: %v", err)
 	}
