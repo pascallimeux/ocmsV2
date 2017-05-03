@@ -8,7 +8,7 @@ client:
     primary: true
     tls:
       # Certificate location absolute path
-      certificate: "fixtures/tls/peers/peer0/ca-cert.pem"
+      certificate: "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/tls/peers/peer0/ca-cert.pem"
       serverHostOverride: "peer0"
 
   # peer2:
@@ -19,7 +19,7 @@ client:
     primary: false
     tls:
       # Certificate location absolute path
-      certificate: "fixtures/tls/peers/peer1/ca-cert.pem"
+      certificate: "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/tls/peers/peer1/ca-cert.pem"
       serverHostOverride: "peer1"
 
  tls:
@@ -39,7 +39,7 @@ client:
   port: 7050
   tls:
     # Certificate location absolute path
-    certificate: "fixtures/tls/orderer/ca-cert.pem"
+    certificate: "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/tls/orderer/ca-cert.pem"
     serverHostOverride: "orderer0"
 
  logging:
@@ -52,8 +52,8 @@ client:
   certfiles :
     - "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/root.pem"
   client:
-   keyfile: "fixtures/tls_client-key.pem"
-   certfile: "fixtures/tls_client-cert.pem"
+   keyfile: "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/tls_client-key.pem"
+   certfile: "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/tls_client-cert.pem"
 
  keystore:
-  path: "fixtures/keystore"
+  path: "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/keystore"
