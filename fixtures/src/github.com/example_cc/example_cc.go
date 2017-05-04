@@ -96,6 +96,10 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		// queries an entity state
 		return t.query(stub, args)
 	}
+	if args[0] == "version" {
+		// queries an entity state
+		return t.getVersion(stub, args)
+	}
 	if args[0] == "move" {
 		if err := stub.SetEvent("testEvent", []byte("Test Payload")); err != nil {
 			return shim.Error("Unable to set CC event: testEvent. Aborting transaction ...")
@@ -177,6 +181,10 @@ func (t *SimpleChaincode) delete(stub shim.ChaincodeStubInterface, args []string
 	}
 
 	return shim.Success(nil)
+}
+func (c *SimpleChaincode)getVersion(stub shim.ChaincodeStubInterface, args []string) pb.Response {
+	valAsBytes := []byte("version 2.0")
+	return shim.Success(valAsBytes)
 }
 
 // Query callback representing the query of a chaincode

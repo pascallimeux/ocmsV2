@@ -1,4 +1,4 @@
-package main
+package ocms
 
 import (
 	"fmt"
@@ -20,12 +20,9 @@ import (
 	//"path"
 )
 
-var REPO="/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures"
-
 type OcmsApp struct {
 	Client          	fabricClient.Client
 	CaClient        	fabricCAClient.Services
-	ChainCodeID		string
 	AdminUser      	 	fabricClient.User
 	ConnectEventHub 	bool
 	EventHub        	events.EventHub
@@ -34,9 +31,10 @@ type OcmsApp struct {
 	Initialized     	bool
 	ConfigFile      	string
 	ChannelConfig   	string
+	Repo                    string
 }
 
-func (app *OcmsApp) initConfig() error{
+func (app *OcmsApp) InitConfig() error{
 	err := config.InitConfig(app.ConfigFile)
 	if err != nil {
 		return err
@@ -45,7 +43,7 @@ func (app *OcmsApp) initConfig() error{
 	return nil
 }
 
-func (app *OcmsApp) setup() error{
+func (app *OcmsApp) Setup() error{
 	err := bccspFactory.InitFactories(&bccspFactory.FactoryOpts{
 		ProviderName: "SW",
 		SwOpts: &bccspFactory.SwOpts{
@@ -62,7 +60,7 @@ func (app *OcmsApp) setup() error{
 	}
 
 	// Get client
-	client, err := fcUtil.GetClient("admin", "adminpw", REPO+"/enroll_user")
+	client, err := fcUtil.GetClient("admin", "adminpw", app.Repo+"/enroll_user")
 	if err != nil {
 		return fmt.Errorf("Create client failed: %v", err)
 	}
@@ -200,44 +198,28 @@ func (app *OcmsApp) revokeUser(adminUser fabricClient.User, userName string)erro
 }
 
 
-func (app *OcmsApp) InstallAndInstantiateCC() error {
-	chainCodePath  := "github.com/consentv2"
-	chainCodeVersion := "v0"
-
-	if app.ChainCodeID == "" {
-		app.ChainCodeID = fcUtil.GenerateRandomID()
-	}
-	if err := app.InstallCC(chainCodePath, chainCodeVersion, nil); err != nil {
+func (app *OcmsApp) DeployCC(chainCodePath, chainCodeVersion, chainCodeID string) error {
+	if err := app.InstallCC(chainCodePath, chainCodeVersion, chainCodeID, nil); err != nil {
 		return err
 	}
 	var args []string
-	fmt.Println("Install OK...")
-	return app.InstantiateCC(chainCodePath, chainCodeVersion, args)
+	return app.InstantiateCC(chainCodePath, chainCodeVersion, chainCodeID, args)
 }
 
-func (app *OcmsApp) InstallAndInstantiateExampleCC() error {
-	chainCodePath := "github.com/example_cc"
-	chainCodeVersion := "v0"
-
-	if app.ChainCodeID == "" {
-		app.ChainCodeID = fcUtil.GenerateRandomID()
-	}
-
-	if err := app.InstallCC(chainCodePath, chainCodeVersion, nil); err != nil {
+func (app *OcmsApp) InstallAndInstantiateExampleCC(chainCodePath, chainCodeVersion, chainCodeID string ) error {
+	if err := app.InstallCC(chainCodePath, chainCodeVersion, chainCodeID,  nil); err != nil {
 		return err
 	}
-
 	var args []string
 	args = append(args, "init")
 	args = append(args, "a")
 	args = append(args, "100")
 	args = append(args, "b")
 	args = append(args, "200")
-	fmt.Println("Install OK...")
-	return app.InstantiateCC(chainCodePath, chainCodeVersion, args)
+	return app.InstantiateCC(chainCodePath, chainCodeVersion, chainCodeID, args)
 }
 
-func (app *OcmsApp) MoveFundsExample() (string, error) {
+func (app *OcmsApp) MoveFundsExample(chainCodeID string) (string, error) {
 	var args []string
 	args = append(args, "invoke")
 	args = append(args, "move")
@@ -246,7 +228,7 @@ func (app *OcmsApp) MoveFundsExample() (string, error) {
 	args = append(args, "1")
 	transientDataMap := make(map[string][]byte)
 	transientDataMap["result"] = []byte("TODO change...")
-	transactionProposalResponse, txID, err := fcUtil.CreateAndSendTransactionProposal(app.Chain, app.ChainCodeID, app.ChainID, args, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, transientDataMap)
+	transactionProposalResponse, txID, err := fcUtil.CreateAndSendTransactionProposal(app.Chain, chainCodeID, app.ChainID, args, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, transientDataMap)
 	if err != nil {
 		return "", fmt.Errorf("CreateAndSendTransactionProposal return error: %v", err)
 	}
@@ -269,37 +251,44 @@ func (app *OcmsApp) MoveFundsExample() (string, error) {
 	return txID, nil
 }
 
-func (app *OcmsApp) QueryAssetExample() (string, error) {
-
+func (app *OcmsApp) QueryAssetExample(chainCodeID string) (string, error) {
 	var args []string
 	args = append(args, "invoke")
 	args = append(args, "query")
 	args = append(args, "b")
-
-	return app.Query(app.ChainID, app.ChainCodeID, args)
+	return app.Query(chainCodeID, args)
 }
 
-func (app *OcmsApp) InstantiateCC(chainCodePath, chainCodeVersion string, args []string) error {
-	if err := fcUtil.SendInstantiateCC(app.Chain, app.ChainCodeID, app.ChainID, args, chainCodePath, chainCodeVersion, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, app.EventHub); err != nil {
+func (app *OcmsApp) GetVersionExample(chainCodeID string) (string, error) {
+	var args []string
+	args = append(args, "invoke")
+	args = append(args, "version")
+	return app.Query(chainCodeID, args)
+}
+
+func (app *OcmsApp) InstantiateCC(chainCodePath, chainCodeVersion, chainCodeID string, args []string) error {
+	if err := fcUtil.SendInstantiateCC(app.Chain, chainCodeID, app.ChainID, args, chainCodePath, chainCodeVersion, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, app.EventHub); err != nil {
 		return err
 	}
+	fmt.Println("Instantiate OK...")
 	return nil
 }
 
-func (app *OcmsApp) InstallCC(chainCodePath, chainCodeVersion string, chaincodePackage []byte) error {
-	if err := fcUtil.SendInstallCC(app.Client, app.Chain, app.ChainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, app.Chain.GetPeers(), app.GetDeployPath()); err != nil {
+func (app *OcmsApp) InstallCC(chainCodePath, chainCodeVersion, chainCodeID string, chaincodePackage []byte) error {
+	if err := fcUtil.SendInstallCC(app.Client, app.Chain, chainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, app.Chain.GetPeers(), app.Repo); err != nil {
 		return fmt.Errorf("SendInstallProposal return error: %v", err)
 	}
+	fmt.Println("Install OK...")
 	return nil
 }
 
 
 // GetDeployPath
-func (app *OcmsApp) GetDeployPath() string {
+/*func (app *OcmsApp) GetDeployPath() string {
 	//pwd, _ := os.Getwd()
 	//return path.Join(pwd, "../fixtures")
 	return REPO
-}
+}*/
 
 // getEventHub initilizes the event hub
 func getEventHub() (events.EventHub, error) {
@@ -337,17 +326,18 @@ func main() {
 	//fmt.Println("OCMSPATH:", os.Getenv("OCMSPATH"))
 
 	app := OcmsApp{
-		ConfigFile:      	REPO+"/config/config.yaml",
-		ChannelConfig:   	REPO+"/channel/testchannel.tx",
+		Repo:                   "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures",
+		ConfigFile:      	"/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml",
+		ChannelConfig:   	"/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/channel/testchannel.tx",
 		ChainID:         	"testchannel",
-		ConnectEventHub: true,
+		ConnectEventHub:        true,
 	}
 
-	err := app.initConfig()
+	err := app.InitConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = app.setup()
+	err = app.Setup()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -373,7 +363,10 @@ func main() {
 	//	log.Fatal(err)
 	//}
 
-	err = app.InstallAndInstantiateExampleCC()
+	chainCodePath := "github.com/example_cc"
+	chainCodeVersion := "v0"
+	chainCodeID := "exemple"
+	err = app.InstallAndInstantiateExampleCC(chainCodePath, chainCodeVersion, chainCodeID)
 	//err = app.InstallAndInstantiateCC()
 	if err != nil {
 		fmt.Errorf("Install and instanciate return error: %v", err)
@@ -392,7 +385,7 @@ func main() {
 
 	//time.Sleep(time.Duration(5)*time.Second)
 
-	value, err := app.QueryAssetExample()
+	value, err := app.QueryAssetExample(chainCodeID)
 	if err != nil {
 		fmt.Errorf("getQueryValue return error: %v", err)
 	}
@@ -454,7 +447,7 @@ const (
 	DATAACCESS1 = "access1"
 )
 
-func (app *OcmsApp) CreateConsent() (string, error) {
+func (app *OcmsApp) CreateConsent(chainCodeID string) (string, error) {
 	var args []string
 	args = append(args, "invoke")
 	args = append(args, "postconsent")
@@ -467,7 +460,7 @@ func (app *OcmsApp) CreateConsent() (string, error) {
 	args = append(args, getStringDateNow(7))
 	transientDataMap := make(map[string][]byte)
 	transientDataMap["result"] = []byte("TODO change...")
-	transactionProposalResponse, txID, err := fcUtil.CreateAndSendTransactionProposal(app.Chain, app.ChainCodeID, app.ChainID, args, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, transientDataMap)
+	transactionProposalResponse, txID, err := fcUtil.CreateAndSendTransactionProposal(app.Chain, chainCodeID, app.ChainID, args, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, transientDataMap)
 	if err != nil {
 		return "", fmt.Errorf("CreateAndSendTransactionProposal return error: %v", err)
 	}
@@ -490,25 +483,25 @@ func (app *OcmsApp) CreateConsent() (string, error) {
 	return txID, nil
 }
 
-func (app *OcmsApp) GetConsents() (string, error) {
+func (app *OcmsApp) GetConsents(chainCodeID string) (string, error) {
 	var args []string
 	args = append(args, "invoke")
 	args = append(args, "getconsents")
 	args = append(args, APPID1)
-	return app.Query(app.ChainID, app.ChainCodeID, args)
+	return app.Query(chainCodeID, args)
 }
 
-func (app *OcmsApp) GetVersion() (string, error) {
+func (app *OcmsApp) GetVersion(chainCodeID string) (string, error) {
 	var args []string
 	args = append(args, "invoke")
 	args = append(args, "getversion")
-	return app.Query(app.ChainID, app.ChainCodeID, args)
+	return app.Query(chainCodeID, args)
 }
 
-func (app *OcmsApp) Query(chainID string, chainCodeID string, args []string) (string, error) {
+func (app *OcmsApp) Query(chainCodeID string, args []string) (string, error) {
 	transientDataMap := make(map[string][]byte)
 	transientDataMap["result"] = []byte("TODO change...")
-	transactionProposalResponses, _, err := fcUtil.CreateAndSendTransactionProposal(app.Chain, chainCodeID, chainID, args, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, transientDataMap)
+	transactionProposalResponses, _, err := fcUtil.CreateAndSendTransactionProposal(app.Chain, chainCodeID, app.ChainID, args, []fabricClient.Peer{app.Chain.GetPrimaryPeer()}, transientDataMap)
 	if err != nil {
 		return "", fmt.Errorf("CreateAndSendTransactionProposal return error: %v", err)
 	}

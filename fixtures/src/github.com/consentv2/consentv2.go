@@ -29,10 +29,10 @@ under the License.
 package main
 
 import (
-"fmt"
-"errors"
-"github.com/hyperledger/fabric/core/chaincode/shim"
-pb "github.com/hyperledger/fabric/protos/peer"
+	"fmt"
+	"errors"
+	"github.com/hyperledger/fabric/core/chaincode/shim"
+	pb "github.com/hyperledger/fabric/protos/peer"
 	"time"
 	"encoding/json"
 	"strconv"
@@ -118,6 +118,7 @@ func (c *ConsentCC) Init(stub shim.ChaincodeStubInterface) pb.Response {
 func (c *ConsentCC) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	function, args := stub.GetFunctionAndParameters()
 	logger.Debug("Invoke("+function+") : calling method -")
+	fmt.Println("****Invoke("+function+") : calling method -****")
 	switch function {
 	case "postconsent":
 		return c.createConsent(stub, args)
@@ -138,7 +139,7 @@ func (c *ConsentCC) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	case "getversion" :
 		return c.getVersion(stub, args)
 	default:
-		return shim.Error(buildError(errorBadFunctionName))
+		return shim.Error(buildError(errorBadFunctionName+function))
 	}
 }
 
@@ -150,6 +151,7 @@ func (c *ConsentCC) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 // =====================================================================================================================
 func (c *ConsentCC)getVersion(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	logger.Debug("getVersion() : calling method -")
+	fmt.Println("########### getVersion ###########")
 	if len(args) != 0 {
 		errStr :=errorArgs+" None argument expecting!"
 		return shim.Error(buildError(errStr))
