@@ -449,7 +449,6 @@ const (
 
 func (app *OcmsApp) CreateConsent(chainCodeID string) (string, error) {
 	var args []string
-	args = append(args, "invoke")
 	args = append(args, "postconsent")
 	args = append(args, APPID1)
 	args = append(args, OWNERID1)
@@ -485,7 +484,6 @@ func (app *OcmsApp) CreateConsent(chainCodeID string) (string, error) {
 
 func (app *OcmsApp) GetConsents(chainCodeID string) (string, error) {
 	var args []string
-	args = append(args, "invoke")
 	args = append(args, "getconsents")
 	args = append(args, APPID1)
 	return app.Query(chainCodeID, args)
@@ -493,7 +491,6 @@ func (app *OcmsApp) GetConsents(chainCodeID string) (string, error) {
 
 func (app *OcmsApp) GetVersion(chainCodeID string) (string, error) {
 	var args []string
-	args = append(args, "invoke")
 	args = append(args, "getversion")
 	return app.Query(chainCodeID, args)
 }

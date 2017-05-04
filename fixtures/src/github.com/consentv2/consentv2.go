@@ -36,6 +36,7 @@ import (
 	"time"
 	"encoding/json"
 	"strconv"
+	//"github.com/op/go-logging"
 )
 
 
@@ -76,6 +77,7 @@ const (
 	errorPeriod               = "Period not valid from:"
 )
 var logger = shim.NewLogger("consent")
+//var logger = logging.MustGetLogger("consent")
 type ConsentCC struct {
 }
 
@@ -109,6 +111,7 @@ type consent struct {
 // =====================================================================================================================
 func (c *ConsentCC) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	logger.Debug("Init() : calling method -")
+	fmt.Println("Init() : calling method -")
 	return shim.Success(nil)
 }
 
@@ -151,7 +154,6 @@ func (c *ConsentCC) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 // =====================================================================================================================
 func (c *ConsentCC)getVersion(stub shim.ChaincodeStubInterface, args []string) pb.Response {
 	logger.Debug("getVersion() : calling method -")
-	fmt.Println("########### getVersion ###########")
 	if len(args) != 0 {
 		errStr :=errorArgs+" None argument expecting!"
 		return shim.Error(buildError(errStr))
