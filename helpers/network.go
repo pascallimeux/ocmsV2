@@ -6,7 +6,10 @@ import(
 	fabricClient "github.com/hyperledger/fabric-sdk-go/fabric-client"
 	bccspFactory "github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric-sdk-go/fabric-client/events"
+	"github.com/op/go-logging"
 )
+
+var log = logging.MustGetLogger("helpers")
 
 type NetworkHelper struct {
 	ChainID         string
@@ -20,10 +23,13 @@ type NetworkHelper struct {
 }
 
 func (nh *NetworkHelper) InitNetwork(username, password, stateStorePath, providerName string)  error{
+	log.Debug("InitNetwork(username:"+ username+" stateStorePath:"+ stateStorePath +" providerName:"+ providerName+") : calling method -")
+	initError := fmt.Errorf("InitNetwork return error")
 	// Init config
 	err := sdkConfig.InitConfig(nh.ConfigFile)
 	if err != nil {
-		return fmt.Errorf("Failed init sdk-go config [%v]", err)
+		log.Error("Failed init sdk-go config", err)
+		return initError
 	}
 	err = bccspFactory.InitFactories(&bccspFactory.FactoryOpts{
 		ProviderName: providerName,
@@ -37,45 +43,52 @@ func (nh *NetworkHelper) InitNetwork(username, password, stateStorePath, provide
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("Failed getting ephemeral software-based BCCSP [%v]", err)
+		log.Error("Failed getting ephemeral software-based BCCSP [",err,"]")
+		return initError
 	}
 	// Get client
 	client, err := sdkUtil.GetClient(username, password, stateStorePath)
 	if err != nil {
-		return fmt.Errorf("Create client failed: %v", err)
+		log.Error("Create client failed: ", err)
+		return initError
 	}
 	nh.Client = client
 
 	// Get chain
 	chain, err := sdkUtil.GetChain(client, nh.ChainID)
 	if err != nil {
-		return fmt.Errorf("Create chain (%s) failed: %v", nh.ChainID, err)
+		log.Error("Create chain ", nh.ChainID," failed: ", err)
+		return initError
 	}
 	nh.Chain = chain
 
 	// Create and join channel
 	if err := sdkUtil.CreateAndJoinChannel(nh.Client, nh.Chain, nh.ChannelConfig); err != nil {
-		return fmt.Errorf("CreateAndJoinChannel return error: %v", err)
+		log.Error("CreateAndJoinChannel return error: ", err)
+		return initError
 	}
 
 	// Get envenHub
 	eventHub, err := getEventHub()
 	if err != nil {
-		return err
+		log.Error("Fail get eventHub: ", err)
+		return initError
 	}
 
 	if err := eventHub.Connect(); err != nil {
-		return fmt.Errorf("Failed eventHub.Connect() [%s]", err)
+		log.Error("Failed eventHub.Connect() ", err)
+		return initError
 	}
 
 	nh.EventHub = eventHub
 	nh.Initialized = true
-	fmt.Println("Hyperledger network initialized...")
+	log.Debug("Hyperledger network initialized...")
 	return nil
 }
 
 
 func (nh *NetworkHelper) DeployCC(chainCodePath, chainCodeVersion, chainCodeID string) error {
+	log.Debug("DeployCC(chainCodePath:"+ chainCodePath+" chainCodeVersion:" + chainCodeVersion +" chainCodeID:"+ chainCodeID+") : calling method -")
 	if err := nh.installCC(chainCodePath, chainCodeVersion, chainCodeID, nil); err != nil {
 		return err
 	}
@@ -85,21 +98,24 @@ func (nh *NetworkHelper) DeployCC(chainCodePath, chainCodeVersion, chainCodeID s
 
 func (nh *NetworkHelper) installCC(chainCodePath, chainCodeVersion, chainCodeID string, chaincodePackage []byte) error {
 	if err := sdkUtil.SendInstallCC(nh.Client, nh.Chain, chainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, nh.Chain.GetPeers(), nh.Repo); err != nil {
-		return fmt.Errorf("SendInstallProposal return error: %v", err)
+		log.Error("SendInstallProposal return error: ", err)
+		return fmt.Errorf("Install chaincode return error")
 	}
-	fmt.Println("Chaincode "+chainCodeID+" installed...")
+	log.Debug("Chaincode "+chainCodeID+" installed...")
 	return nil
 }
 
 func (nh *NetworkHelper) instantiateCC(chainCodePath, chainCodeVersion, chainCodeID string, args []string) error {
 	if err := sdkUtil.SendInstantiateCC(nh.Chain, chainCodeID, nh.ChainID, args, chainCodePath, chainCodeVersion, []fabricClient.Peer{nh.Chain.GetPrimaryPeer()}, nh.EventHub); err != nil {
-		return err
+		log.Error("SendInstantiateProposal return error: ", err)
+		return fmt.Errorf("Instantiate chaincode return error")
 	}
-	fmt.Println("Instantiate OK...")
+	log.Debug("Chaincode "+chainCodeID+" Instantiate...")
 	return nil
 }
 
 func getEventHub() (events.EventHub, error) {
+	log.Debug("getEventHub() : calling method -")
 	eventHub := events.NewEventHub()
 	foundEventHub := false
 	peerConfig, err := sdkConfig.GetPeersConfig()
@@ -119,6 +135,5 @@ func getEventHub() (events.EventHub, error) {
 	if !foundEventHub {
 		return nil, fmt.Errorf("No EventHub configuration found")
 	}
-
 	return eventHub, nil
 }
