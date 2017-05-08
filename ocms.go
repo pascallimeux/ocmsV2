@@ -3,8 +3,14 @@ package main
 import(
 	"github.com/pascallimeux/ocmsV2/helpers"
 	"github.com/cloudflare/cfssl/log"
-	"fmt"
+	"github.com/pascallimeux/ocmsV2/api"
+	"net/http"
+	"time"
+	"github.com/op/go-logging"
+	"github.com/gorilla/mux"
 )
+
+var log = logging.MustGetLogger("ocms")
 
 
 const(
@@ -46,11 +52,19 @@ func main() {
 		EventHub:		networkHelper.EventHub,
 	}
 
-	version, err := consentHelper.GetVersion(chainCodeID)
-	if err != nil {
-		fmt.Errorf("getVersion return error: %v", err)
-	}
-	fmt.Printf("*** Version of consentV2 CC: %s\n", version)
+	// Init application context
+	appContext := api.AppContext{ConsentHelper: consentHelper, NetworkHelper: networkHelper}
 
+	// Init routes for application
+	var router *mux.Router
+	appContext.CreateOCMSRoutes(router)
+
+	s := &http.Server{
+		Addr:         configuration.HttpHostUrl,
+		Handler:      router,
+		ReadTimeout:  configuration.ReadTimeout * time.Nanosecond,
+		WriteTimeout: configuration.WriteTimeout * time.Nanosecond,
+	}
+	log.Fatal(s.ListenAndServe().Error())
 
 }

@@ -20,3 +20,5 @@ go build ocms.go
 cd /opt/gopath/src/github.com/hyperledger/fabric-sdk-go/test/fixtures/
 docker-compose -f docker-compose.yaml stop
 
+go get github.com/gorilla/mux
+go get github.com/op/go-logging

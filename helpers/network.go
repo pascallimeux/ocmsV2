@@ -7,6 +7,9 @@ import(
 	bccspFactory "github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric-sdk-go/fabric-client/events"
 	"github.com/op/go-logging"
+	"github.com/hyperledger/fabric/protos/common"
+	pb "github.com/hyperledger/fabric/protos/peer"
+	"strconv"
 )
 
 var log = logging.MustGetLogger("helpers")
@@ -114,6 +117,46 @@ func (nh *NetworkHelper) instantiateCC(chainCodePath, chainCodeVersion, chainCod
 	return nil
 }
 
+
+func (nh *NetworkHelper) QueryInfos()(*common.BlockchainInfo, error){
+	log.Debug("QueryInfos() : calling method -")
+	return nh.Chain.QueryInfo()
+}
+
+func (nh *NetworkHelper) QueryTransaction(transactionID string)(*pb.ProcessedTransaction, error){
+	log.Debug("QueryTransaction("+transactionID+") : calling method -")
+	return nh.Chain.QueryTransaction(transactionID)
+}
+
+func (nh *NetworkHelper) QueryBlockByNumber(nb int)(*common.Block, error){
+	log.Debug("QueryBlockByNumber("+strconv.Itoa(nb)+") : calling method -")
+	return nh.Chain.QueryBlock(nb)
+}
+
+func (nh *NetworkHelper) QueryBlockByHash(hash []byte)(*common.Block, error){
+	log.Debug("QueryBlockByHash("+string(hash)+") : calling method -")
+	return nh.Chain.QueryBlockByHash(hash)
+}
+
+func (nh *NetworkHelper) QueryChannels()(*pb.ChannelQueryResponse, error){
+	log.Debug("QueryChannels() : calling method -")
+	target := nh.Chain.GetPrimaryPeer()
+	return nh.Client.QueryChannels(target)
+}
+
+func (nh *NetworkHelper) GetInstalledChainCode()(*pb.ChaincodeQueryResponse, error){
+	target := nh.Chain.GetPrimaryPeer()
+	log.Debug("QueryInstalledChaincodes("+target.GetURL()+") : calling method -")
+	return  nh.Client.QueryInstalledChaincodes(target)
+}
+
+func (nh *NetworkHelper) QueryByChainCode(chaincodeName string)([][]byte, error){
+	log.Debug("QueryByChaincode("+chaincodeName+") : calling method -")
+	targets := nh.Chain.GetPeers()
+	return nh.Chain.QueryByChaincode(chaincodeName, []string{"getinstalledchaincodes"}, targets)
+}
+
+
 func getEventHub() (events.EventHub, error) {
 	log.Debug("getEventHub() : calling method -")
 	eventHub := events.NewEventHub()
@@ -131,7 +174,6 @@ func getEventHub() (events.EventHub, error) {
 			break
 		}
 	}
-
 	if !foundEventHub {
 		return nil, fmt.Errorf("No EventHub configuration found")
 	}
