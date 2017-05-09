@@ -17,6 +17,7 @@ type ConsentHelper struct {
 }
 
 type Consent struct {
+	Action		string     `json:"action"`
 	AppID 		string     `json:"appid"`
 	State       	string     `json:"state"`
 	ConsentID      	string     `json:"consentid"`
@@ -24,9 +25,15 @@ type Consent struct {
 	ConsumerID      string     `json:"consumerid"`
 	DataType      	string     `json:"datatype"`
 	DataAccess      string     `json:"dataaccess"`
-	Dt_begin      	time.Time  `json:"dtbegin"`
-	Dt_end       	time.Time  `json:"dtend"`
+	Dt_begin      	string     `json:"dtbegin"`
+	Dt_end       	string     `json:"dtend"`
 }
+
+func (c *Consent) Print() string {
+	consentStr := fmt.Sprintf("ConsentID:%s ConsumerID:%s OwnerID:%s Datatype:%s Dataaccess:%s Dt_begin:%s Dt_end:%s", c.ConsentID, c.ConsumerID, c.OwnerID, c.DataType, c.DataAccess, c.Dt_begin, c.Dt_end)
+	return consentStr
+}
+
 
 func (ch *ConsentHelper) GetVersion(chainCodeID string) (string, error) {
 	var args []string

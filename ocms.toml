@@ -1,0 +1,29 @@
+[OCMSversion]
+version = "2.0.0 (2017-05-09)"
+
+[logger]
+mode = "error"
+logFileName = "./ocms.log"
+
+[server]
+#httpHostIp = "10.194.18.46"  
+httpHostPort = 8033 
+readTimeout = 5000000000 # in nanoseconds
+writeTimeout = 10000000000 # in nanoseconds
+
+[chaincode]
+chainCodePath     = "github.com/consentv2"
+chainCodeVersion  = "v0"
+chainCodeID       = "consentv2"
+chainID           = "testchannel"
+providerName      = "SW"
+
+[path]
+repo              = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures"
+statStorePath     = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user"
+sdkConfigFile     = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml"
+channelConfigFile = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/channel/testchannel.tx"
+
+[admin]
+adminUsername     = "admin"
+adminPwd          = "adminpw"

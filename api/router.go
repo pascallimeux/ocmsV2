@@ -22,20 +22,19 @@ import (
 var log = logging.MustGetLogger("api")
 
 const (
-	VERSIONURI   = "/ocms/v2/version"
+	VERSIONURI   = "/ocms/v2/api/version"
 	CONSENTAPI   = "/ocms/v2/api/consent/"
-	CONSENTTRAPI = "/ocms/v2/api/hyperledger/consenttr"
 )
 
 type AppContext struct {
 	HttpServer     	*http.Server
 	ConsentHelper	helpers.ConsentHelper
 	NetworkHelper 	helpers.NetworkHelper
+	ChainCodeID   	string
 }
 
-func (appContext *AppContext) CreateOCMSRoutes(router *mux.Router) {
+func (a *AppContext) CreateOCMSRoutes(router *mux.Router) {
 	log.Debug("CreateOCMSRoutes() : calling method -")
-	router.HandleFunc(VERSIONURI, appContext.getVersion).Methods("GET")
-	router.HandleFunc(CONSENTAPI, appContext.processConsent).Methods("POST")
-	router.HandleFunc(CONSENTTRAPI+"/{truuid}", appContext.processConsentTR).Methods("GET")
+	router.HandleFunc(VERSIONURI, a.getVersion).Methods("GET")
+	router.HandleFunc(CONSENTAPI, a.processConsent).Methods("POST")
 }

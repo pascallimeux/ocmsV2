@@ -2,8 +2,8 @@ package main
 
 import(
 	"github.com/pascallimeux/ocmsV2/helpers"
-	"github.com/cloudflare/cfssl/log"
 	"github.com/pascallimeux/ocmsV2/api"
+	"github.com/pascallimeux/ocmsV2/settings"
 	"net/http"
 	"time"
 	"github.com/op/go-logging"
@@ -12,51 +12,42 @@ import(
 
 var log = logging.MustGetLogger("ocms")
 
-
-const(
-	chainCodePath    = "github.com/consentv2"
-	chainCodeVersion = "v0"
-	chainCodeID      = "consentv2"
-	adminusername    = "admin"
-	adminPwd         = "adminpw"
-	repo             = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures"
-	statstorePath    = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user"
-	configfile       = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml"
-	channelConfig    = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/channel/testchannel.tx"
-	chainID          = "testchannel"
-	providerName     = "SW"
-)
-
 func main() {
 
+	// Init settings
+	configuration, err := settings.GetSettings(".", "ocms")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Init Hyperledger network
 	networkHelper := helpers.NetworkHelper{
-		Repo:                   repo,
-		ConfigFile:      	configfile,
-		ChannelConfig:   	channelConfig,
-		ChainID:         	chainID,
+		Repo:                   configuration.Repo,
+		ConfigFile:      	configuration.SDKConfigfile,
+		ChannelConfig:   	configuration.ChannelConfigFile,
+		ChainID:         	configuration.ChainID,
 	}
-
-	err := networkHelper.InitNetwork(adminusername, adminPwd, statstorePath, providerName)
+	err = networkHelper.InitNetwork(configuration.Adminusername, configuration.AdminPwd, configuration.StatstorePath, configuration.ProviderName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = networkHelper.DeployCC(chainCodePath, chainCodeVersion, chainCodeID)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Deploy the consent smartcontract if is not deployed
+	networkHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
+
 
 	consentHelper := helpers.ConsentHelper{
-		ChainID:         	chainID,
+		ChainID:         	configuration.ChainID,
 		Chain:			networkHelper.Chain,
 		EventHub:		networkHelper.EventHub,
 	}
 
+
 	// Init application context
-	appContext := api.AppContext{ConsentHelper: consentHelper, NetworkHelper: networkHelper}
+	appContext := api.AppContext{ConsentHelper: consentHelper, NetworkHelper: networkHelper, ChainCodeID: configuration.ChainCodeID}
 
 	// Init routes for application
-	var router *mux.Router
+	router := mux.NewRouter().StrictSlash(false)
 	appContext.CreateOCMSRoutes(router)
 
 	s := &http.Server{
@@ -66,5 +57,7 @@ func main() {
 		WriteTimeout: configuration.WriteTimeout * time.Nanosecond,
 	}
 	log.Fatal(s.ListenAndServe().Error())
+
+	defer configuration.Close()
 
 }
