@@ -7,6 +7,7 @@ import (
 	"github.com/google/certificate-transparency/go/x509"
 	"github.com/hyperledger/fabric/bccsp"
 	"encoding/pem"
+	"io/ioutil"
 )
 
 type UserHelper struct {
@@ -21,7 +22,7 @@ type RegistrerUser struct {
 	Affiliation     string
 }
 
-func (uh *UserHelper) init (usernameAdm, passwordAdm string) error{
+func (uh *UserHelper) Init (usernameAdm, passwordAdm string) error{
 	caClient, err := fabricCAClient.NewFabricCAClient()
 	if err != nil {
 		return errors.New("NewFabricCAClient return error: %v"+ err.Error())
@@ -35,15 +36,42 @@ func (uh *UserHelper) init (usernameAdm, passwordAdm string) error{
 	return nil
 }
 
-func (uh *UserHelper) registerUser(registerUser RegistrerUser) (string, error) {
+func (uh *UserHelper) RegisterUser(registerUser RegistrerUser) (string, error) {
 	log.Debug("registerUser(name:"+ registerUser.Name+" Type:" + registerUser.Type +" Affiliation:"+ registerUser.Affiliation+") : calling method -")
-
 	registerRequest := fabricCAClient.RegistrationRequest{Name: registerUser.Name, Type: registerUser.Type, Affiliation: registerUser.Affiliation}
 	enrolmentSecret, err := uh.CaClient.Register(uh.AdmUser, &registerRequest)
 	if err != nil {
 		return "", err
 	}
 	return enrolmentSecret, nil
+}
+
+
+func (uh *UserHelper) EnrollUser(userName, enrolmentSecret string) error{
+	log.Debug("enrollUser(userName:"+ userName+") : calling method -")
+	key, cert, err := uh.CaClient.Enroll(userName, enrolmentSecret)
+	if err != nil {
+		return errors.New("Error enroling user: %s"+ err.Error())
+	}
+	err = ioutil.WriteFile("/tmp/"+userName+".cert.pem", cert, 0644)
+	if err != nil {
+		return errors.New("Error write certificate: %s"+ err.Error())
+	}
+	err = ioutil.WriteFile("/tmp/"+userName+".key.pem", key, 0644)
+	if err != nil {
+		return errors.New("Error write key: %s"+ err.Error())
+	}
+	return nil
+}
+
+func (uh *UserHelper) RevokeUser(adminUser fabricClient.User, userName string)error{
+	log.Debug("revokeUser(userName:"+ userName+") : calling method -")
+	revokeRequest := fabricCAClient.RevocationRequest{Name: userName}
+	err := uh.CaClient.Revoke(adminUser, &revokeRequest)
+	if err != nil {
+		return errors.New("Error from Revoke: %s"+ err.Error())
+	}
+	return nil
 }
 
 func (uh *UserHelper) getUser(username, password string) (fabricClient.User, error) {

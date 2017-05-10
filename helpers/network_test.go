@@ -9,6 +9,7 @@ import (
 
 var netHelper  NetworkHelper
 var consHelper ConsentHelper
+var userHelper UserHelper
 var configuration settings.Settings
 
 const(
@@ -59,6 +60,10 @@ func setup() {
 	}
 
 	netHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
+
+	userHelper = UserHelper{}
+	userHelper.Init(configuration.Adminusername, configuration.AdminPwd)
+
 	/*err = netHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
 	if err != nil {
 		log.Fatal(err.Error())
