@@ -114,7 +114,7 @@ func TestQueryTransaction(t *testing.T) {
 }
 
 func TestQueryBlockByNumber(t *testing.T) {
-	block, err := netHelper.QueryBlockByNumber(1)
+	block, err := netHelper.QueryBlockByNumber("1")
 	if err != nil {
 		t.Error("QueryBlockByNumber return error: ", err)
 	}
@@ -128,7 +128,7 @@ func TestQueryBlockByHash(t *testing.T) {
 	}
 
 	// Test Query Block by Hash - retrieve current block by hash
-	block, err := netHelper.QueryBlockByHash(bci.CurrentBlockHash)
+	block, err := netHelper.QueryBlockByHash(string(bci.CurrentBlockHash))
 	if err != nil {
 		t.Fatalf("QueryBlockByHash return error: %v", err)
 	}

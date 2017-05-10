@@ -35,6 +35,7 @@ type Settings struct {
 
 
 }
+var log = logging.MustGetLogger("ocms.settings")
 
 func (s *Settings) ToString() string {
 	st :=     "Logger          --> file:" + s.LogFileName + " in " + s.LogMode + " mode \n"
@@ -85,7 +86,7 @@ func GetSettings(configPath, configFileName string) (Settings, error) {
 		if logFileName == "" {
 			logFileName = viper.GetString("logger.logFileName")
 		}
-		configuration.LogFile, err = initLogger(logMode, logFileName)
+		configuration.LogFile, err = InitLogger(logMode, logFileName)
 		if err != nil {
 			return configuration, errors.New("Error logfile!")
 		}
@@ -148,26 +149,29 @@ func getOutboundIP() (string, error) {
 	return localAddr[0:idx], nil
 }
 
-func initLogger(logMode, logFilePath string) (*os.File, error) {
+func InitLogger(logMode, logFilePath string) (*os.File, error) {
 	format := logging.MustStringFormatter(
-		`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
+		//`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
+		` %{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x} %{message}`,
 	)
 	f := os.Stderr
-	var err error
 	if logFilePath != "" {
 		if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
 			f, err = os.Create(logFilePath)
+			if err != nil {
+				return f, err
+			}
 		}else {
-		f, err = os.OpenFile(logFilePath, os.O_APPEND | os.O_WRONLY, 0600)
-		}
-		if err != nil {
-			return f, err
+			f, err = os.OpenFile(logFilePath, os.O_APPEND | os.O_WRONLY, 0600)
+			if err != nil {
+				return f, err
+			}
 		}
 	}
-	backend := logging.NewLogBackend(f, "", 0)
+
+	backend := logging.NewLogBackend(f, "ocms", 0)
 	backendFormatter := logging.NewBackendFormatter(backend, format)
-	logging.SetBackend(backendFormatter)
-	//backend1 := logging.AddModuleLevel(backend)
+	backendLeveled := logging.AddModuleLevel(backendFormatter)
 	level := logging.ERROR
 	switch logMode {
 	case "critical":
@@ -181,18 +185,9 @@ func initLogger(logMode, logFilePath string) (*os.File, error) {
 	case "debug":
 		level = logging.DEBUG
 	}
-	//backend1.SetLevel(level, "")
-	//backend2 := logging.NewBackendFormatter(backend1, format)
-	//logging.SetBackend(backend2)
-	llevel, err :=  logging.LogLevel(level)
-	if err != nil {
-		logging.SetLevel(logging.ERROR, "")
-	} else{
-		logging.SetLevel( llevel, "")
-	}
-
-	//logging.SetFormatter(format)
-	//logging.SetLevel(level, "")
+	backendLeveled.SetLevel(level, "")
+	logging.SetBackend(backendLeveled)
+	log.Debug("Logger initialized")
 	return f, nil
 }
 

@@ -12,14 +12,14 @@ import(
 	"strconv"
 )
 
-var log = logging.MustGetLogger("helpers")
+var log = logging.MustGetLogger("ocms.helpers")
 
 type NetworkHelper struct {
 	ChainID         string
 	Repo            string
 	ConfigFile     	string
 	ChannelConfig	string
-	Client          fabricClient.Client
+	AdmClient       fabricClient.Client
 	Chain 	        fabricClient.Chain
 	EventHub        events.EventHub
 	Initialized     bool
@@ -55,7 +55,7 @@ func (nh *NetworkHelper) InitNetwork(username, password, stateStorePath, provide
 		log.Error("Create client failed: ", err)
 		return initError
 	}
-	nh.Client = client
+	nh.AdmClient = client
 
 	// Get chain
 	chain, err := sdkUtil.GetChain(client, nh.ChainID)
@@ -66,7 +66,7 @@ func (nh *NetworkHelper) InitNetwork(username, password, stateStorePath, provide
 	nh.Chain = chain
 
 	// Create and join channel
-	if err := sdkUtil.CreateAndJoinChannel(nh.Client, nh.Chain, nh.ChannelConfig); err != nil {
+	if err := sdkUtil.CreateAndJoinChannel(nh.AdmClient, nh.Chain, nh.ChannelConfig); err != nil {
 		log.Error("CreateAndJoinChannel return error: ", err)
 		return initError
 	}
@@ -92,15 +92,15 @@ func (nh *NetworkHelper) InitNetwork(username, password, stateStorePath, provide
 
 func (nh *NetworkHelper) DeployCC(chainCodePath, chainCodeVersion, chainCodeID string) error {
 	log.Debug("DeployCC(chainCodePath:"+ chainCodePath+" chainCodeVersion:" + chainCodeVersion +" chainCodeID:"+ chainCodeID+") : calling method -")
-	if err := nh.installCC(chainCodePath, chainCodeVersion, chainCodeID, nil); err != nil {
+	if err := nh.InstallCC(chainCodePath, chainCodeVersion, chainCodeID, nil); err != nil {
 		return err
 	}
 	var args []string
-	return nh.instantiateCC(chainCodePath, chainCodeVersion, chainCodeID, args)
+	return nh.InstantiateCC(chainCodePath, chainCodeVersion, chainCodeID, args)
 }
 
-func (nh *NetworkHelper) installCC(chainCodePath, chainCodeVersion, chainCodeID string, chaincodePackage []byte) error {
-	if err := sdkUtil.SendInstallCC(nh.Client, nh.Chain, chainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, nh.Chain.GetPeers(), nh.Repo); err != nil {
+func (nh *NetworkHelper) InstallCC(chainCodePath, chainCodeVersion, chainCodeID string, chaincodePackage []byte) error {
+	if err := sdkUtil.SendInstallCC(nh.AdmClient, nh.Chain, chainCodeID, chainCodePath, chainCodeVersion, chaincodePackage, nh.Chain.GetPeers(), nh.Repo); err != nil {
 		log.Error("SendInstallProposal return error: ", err)
 		return fmt.Errorf("Install chaincode return error")
 	}
@@ -108,7 +108,7 @@ func (nh *NetworkHelper) installCC(chainCodePath, chainCodeVersion, chainCodeID 
 	return nil
 }
 
-func (nh *NetworkHelper) instantiateCC(chainCodePath, chainCodeVersion, chainCodeID string, args []string) error {
+func (nh *NetworkHelper) InstantiateCC(chainCodePath, chainCodeVersion, chainCodeID string, args []string) error {
 	if err := sdkUtil.SendInstantiateCC(nh.Chain, chainCodeID, nh.ChainID, args, chainCodePath, chainCodeVersion, []fabricClient.Peer{nh.Chain.GetPrimaryPeer()}, nh.EventHub); err != nil {
 		log.Error("SendInstantiateProposal return error: ", err)
 		return fmt.Errorf("Instantiate chaincode return error")
@@ -128,26 +128,35 @@ func (nh *NetworkHelper) QueryTransaction(transactionID string)(*pb.ProcessedTra
 	return nh.Chain.QueryTransaction(transactionID)
 }
 
-func (nh *NetworkHelper) QueryBlockByNumber(nb int)(*common.Block, error){
-	log.Debug("QueryBlockByNumber("+strconv.Itoa(nb)+") : calling method -")
+func (nh *NetworkHelper) QueryBlockByNumber(stnb string)(*common.Block, error){
+	log.Debug("QueryBlockByNumber("+stnb+") : calling method -")
+	nb, err :=strconv.Atoi(stnb)
+	if err != nil {
+		nb = -1
+	}
 	return nh.Chain.QueryBlock(nb)
 }
 
-func (nh *NetworkHelper) QueryBlockByHash(hash []byte)(*common.Block, error){
-	log.Debug("QueryBlockByHash("+string(hash)+") : calling method -")
-	return nh.Chain.QueryBlockByHash(hash)
+func (nh *NetworkHelper) QueryBlockByHash(hash string)(*common.Block, error){
+	log.Debug("QueryBlockByHash("+hash+") : calling method -")
+	return nh.Chain.QueryBlockByHash([]byte(hash))
 }
 
 func (nh *NetworkHelper) QueryChannels()(*pb.ChannelQueryResponse, error){
 	log.Debug("QueryChannels() : calling method -")
 	target := nh.Chain.GetPrimaryPeer()
-	return nh.Client.QueryChannels(target)
+	return nh.AdmClient.QueryChannels(target)
 }
 
 func (nh *NetworkHelper) GetInstalledChainCode()(*pb.ChaincodeQueryResponse, error){
 	target := nh.Chain.GetPrimaryPeer()
 	log.Debug("QueryInstalledChaincodes("+target.GetURL()+") : calling method -")
-	return  nh.Client.QueryInstalledChaincodes(target)
+	return  nh.AdmClient.QueryInstalledChaincodes(target)
+}
+
+func (nh *NetworkHelper) GetInstanciateChainCode()(*pb.ChaincodeQueryResponse, error){
+	log.Debug("GetInstanciateChainCode() : calling method -")
+	return nh.Chain.QueryInstantiatedChaincodes()
 }
 
 func (nh *NetworkHelper) QueryByChainCode(chaincodeName string)([][]byte, error){
@@ -156,6 +165,10 @@ func (nh *NetworkHelper) QueryByChainCode(chaincodeName string)([][]byte, error)
 	return nh.Chain.QueryByChaincode(chaincodeName, []string{"getinstalledchaincodes"}, targets)
 }
 
+func (nh *NetworkHelper) GetPeers()([]fabricClient.Peer){
+	log.Debug("GetPeers() : calling method -")
+	return nh.Chain.GetPeers()
+}
 
 func getEventHub() (events.EventHub, error) {
 	log.Debug("getEventHub() : calling method -")

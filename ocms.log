@@ -1,0 +1,35 @@
+ocms 10:31:17.458 InitLogger ▶ DEBU 001 Logger initialized
+ocms 10:31:17.458 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms 10:31:17.459 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms 10:31:17.459 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms 10:31:17.459 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info
+ocms 11:21:48.295 InitLogger ▶ DEBU 001 Logger initialized
+ocms 11:21:48.296 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms 11:21:48.296 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms 11:21:48.296 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms 11:21:48.296 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info
+ocms 11:26:06.192 InitLogger ▶ DEBU 001 Logger initialized
+ocms 11:26:06.193 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms 11:26:06.193 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms 11:26:06.193 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms 11:26:06.194 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info
+ocms 11:39:57.756 InitLogger ▶ DEBU 001 Logger initialized
+ocms 11:39:57.757 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms 11:39:57.757 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms 11:39:57.757 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms 11:39:57.757 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info
+ocms 13:07:51.034 InitLogger ▶ DEBU 001 Logger initialized
+ocms 13:07:51.034 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms 13:07:51.034 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms 13:07:51.034 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms 13:07:51.034 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info
+ocms 13:23:38.064 InitLogger ▶ DEBU 001 Logger initialized
+ocms 13:23:38.064 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms 13:23:38.064 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms 13:23:38.064 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms 13:23:38.064 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info
+ocms 13:48:08.664 InitLogger ▶ DEBU 001 Logger initialized
+ocms 13:48:08.664 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms 13:48:08.664 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms 13:48:08.664 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms 13:48:08.665 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info

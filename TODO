@@ -1,0 +1,19 @@
+- Gestion des logs avec go-logging
+- retour d'erreur des API
+- transaction avec ack
+
+voir la paramétage pour configurer le numéro IP pour le sdk-go
+
+
+
+separer les 3 type d API
+    dashboard
+
+    consent
+        C.R.U.D.L
+    admin
+        user
+        smartcontract
+
+
+

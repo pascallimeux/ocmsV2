@@ -1,1 +1,6 @@
 test le petit
+ocms08:12:37.090 initLogger ▶ DEBU 001 Logger initialized
+ocms08:12:37.090 InitNetwork ▶ DEBU 002 InitNetwork(username:admin stateStorePath:/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user providerName:SW) : calling method -
+ocms08:12:37.090 InitConfigWithCmdRoot ▶ INFO 003 Using config file: /opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config.yaml
+ocms08:12:37.090 InitConfigWithCmdRoot ▶ DEBU 004 http://localhost:7054
+ocms08:12:37.090 InitConfigWithCmdRoot ▶ INFO 005 fabric_sdk_go Logging level: info
