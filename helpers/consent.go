@@ -12,8 +12,10 @@ import (
 
 type ConsentHelper struct {
 	ChainID         string
+	StatStorePath   string
 	Chain 	        fabricClient.Chain
 	EventHub        events.EventHub
+	Initialized	bool
 }
 
 type Consent struct {
@@ -29,13 +31,33 @@ type Consent struct {
 	Dt_end       	string     `json:"dtend"`
 }
 
-func (c *Consent) Print() string {
-	consentStr := fmt.Sprintf("ConsentID:%s ConsumerID:%s OwnerID:%s Datatype:%s Dataaccess:%s Dt_begin:%s Dt_end:%s", c.ConsentID, c.ConsumerID, c.OwnerID, c.DataType, c.DataAccess, c.Dt_begin, c.Dt_end)
+
+func (ch *ConsentHelper) Init(userCredentials UserCredentials) error{
+	chain, err := getChain(userCredentials, ch.StatStorePath, ch.ChainID)
+	if err != nil {
+		return err
+	}
+	eventHub, err := getEventHub()
+	if err != nil {
+		return err
+	}
+	if err := eventHub.Connect(); err != nil {
+		return err
+	}
+	ch.Chain    = chain
+	ch.EventHub = eventHub
+	ch.Initialized = true
+	return nil
+}
+
+func (ch *Consent) Print() string {
+	consentStr := fmt.Sprintf("ConsentID:%s ConsumerID:%s OwnerID:%s Datatype:%s Dataaccess:%s Dt_begin:%s Dt_end:%s", ch.ConsentID, ch.ConsumerID, ch.OwnerID, ch.DataType, ch.DataAccess, ch.Dt_begin, ch.Dt_end)
 	return consentStr
 }
 
 
 func (ch *ConsentHelper) GetVersion(chainCodeID string) (string, error) {
+	log.Debug("GetVersion(chainCodeID:"+ chainCodeID+") : calling method -")
 	var args []string
 	args = append(args, "getversion")
 	return ch.query(chainCodeID, args)

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"os"
 	"time"
+	"strings"
 	"github.com/pascallimeux/ocmsV2/settings"
 )
 
@@ -11,7 +12,7 @@ var netHelper  NetworkHelper
 var consHelper ConsentHelper
 var userHelper UserHelper
 var configuration settings.Settings
-
+var statStorePath string
 const(
 	CCVERSION   	   = "Orange Consent Application chaincode ver 3 Dated 2017-03-09"
 	APPID1      	   = "APP4TESTS1"
@@ -40,34 +41,35 @@ func setup() {
 	if err != nil {
 		panic(err.Error())
 	}
+	statStorePath =  configuration.StatstorePath
+	adminCredentials := UserCredentials {UserName:configuration.Adminusername, EnrollmentSecret:configuration.AdminPwd}
 
-	netHelper = NetworkHelper{
-		Repo:                   configuration.Repo,
-		ConfigFile:      	configuration.SDKConfigfile,
-		ChannelConfig:   	configuration.ChannelConfigFile,
-		ChainID:         	configuration.ChainID,
+	// Init network helper
+	netHelper = NetworkHelper{Repo: configuration.Repo, StatStorePath: configuration.StatstorePath, ChainID: configuration.ChainID}
+	err = netHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.SDKConfigfile, configuration.ChannelConfigFile)
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	err = netHelper.InitNetwork(configuration.Adminusername, configuration.AdminPwd, configuration.StatstorePath, configuration.ProviderName)
+	err = netHelper.Init(adminCredentials)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 
-	consHelper = ConsentHelper{
-		ChainID:         	configuration.ChainID,
-		Chain:			netHelper.Chain,
-		EventHub:		netHelper.EventHub,
+	// Init user helper
+	userHelper = UserHelper{
+		StatStorePath: configuration.StatstorePath,
+	}
+	userHelper.Init(adminCredentials)
+
+	// Init consent helper
+	consHelper = ConsentHelper{ChainID:configuration.ChainID, StatStorePath:configuration.StatstorePath}
+	err = consHelper.Init(adminCredentials)
+	if err != nil {
+		log.Fatal(err.Error())
 	}
 
+	// Deploy the smartcontract
 	netHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
-
-	userHelper = UserHelper{}
-	userHelper.Init(configuration.Adminusername, configuration.AdminPwd)
-
-	/*err = netHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
-	if err != nil {
-		log.Fatal(err.Error())
-	}*/
 }
 
 func shutdown(){
@@ -96,6 +98,17 @@ func shutdown(){
 		log.Fatal("DeleteConsent return error: ", err)
 	}
 	defer configuration.Close()
+}
+
+func Test1(t *testing.T) {
+	chainname := netHelper.Chain.GetName()
+	//orderers := netHelper.Chain.GetOrderers()
+	//peers := netHelper.Chain.GetPeers()
+	ppeers := netHelper.Chain.GetPrimaryPeer()
+	t.Log("chainID: ", chainname)
+	//t.Log("orderers: ", strings.Join(orderers.GetURL()," "))
+	//t.Log("peers: ", strings.Join(peers.GetURL()," "))
+	t.Log("primary peers: ", string(ppeers.GetURL()))
 }
 
 func TestQueryInfos(t *testing.T) {

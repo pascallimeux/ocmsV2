@@ -1,8 +1,17 @@
-- Gestion des logs avec go-logging
 - retour d'erreur des API
-- transaction avec ack
+- renommer le projet en HIS
+- tester les get sur client et sur chain
+- faire les classes de tests associées aux handler et aux helpers et verifier le contenu des tests
+- faire les tests postman
+- Gestion des logs avec go-logging
+- mettre des logs pour chaque appel de fonction et chaque erreur
+- resoudre pb de transaction avec ack
+- les api query qui ne fonctionnent pas
+- mettre les APIs en https
+- refactoriser le code (majuscule, methode publique etc.)
 
-voir la paramétage pour configurer le numéro IP pour le sdk-go
+
+voir le paramétage pour configurer le numéro IP pour le sdk-go
 
 
 
@@ -11,6 +20,7 @@ separer les 3 type d API
 
     consent
         C.R.U.D.L
+
     admin
         user
         smartcontract

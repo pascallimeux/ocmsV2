@@ -47,7 +47,6 @@ func TestGetConsents(t *testing.T) {
 	if len(consents) != 2 {
 		t.Error(" Does not get the right number of consents 2 expected, but ", strconv.Itoa(len(consents)), " received...")
 	}
-
 }
 
 func TestGetAConsent(t *testing.T) {

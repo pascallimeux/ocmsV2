@@ -11,14 +11,16 @@ import (
 	"os"
 	"testing"
 	"time"
-	"strings"
-	"io/ioutil"
 )
 
 var configuration settings.Settings
 var httpServerTest *httptest.Server
-const TransactionTimeout = time.Millisecond * 1500
-const APPID = "apptest"
+const(
+	ADMINNAME          = "admin"
+	ADMINPWD           = "admpw"
+	APPID              = "apptest"
+	TransactionTimeout = time.Millisecond * 1500
+)
 
 func TestMain(m *testing.M) {
 	setup()
@@ -30,38 +32,39 @@ func TestMain(m *testing.M) {
 func setup() {
 	// Init settings
 	var err error
-	configuration, err = settings.GetSettings("..", "ocms")
+	configuration, err = settings.GetSettings("..", "ocmstest")
 	if err != nil {
 		panic(err.Error())
 	}
 
-	netHelper := helpers.NetworkHelper{
+	networkHelper := helpers.NetworkHelper{
 		Repo:                   configuration.Repo,
-		ConfigFile:      	configuration.SDKConfigfile,
-		ChannelConfig:   	configuration.ChannelConfigFile,
-		ChainID:         	configuration.ChainID,
-	}
+		StatStorePath:          configuration.StatstorePath,
+		ChainID:         	configuration.ChainID}
 
-	err = netHelper.InitNetwork(configuration.Adminusername, configuration.AdminPwd, configuration.StatstorePath, configuration.ProviderName)
+	adminCredentials := helpers.UserCredentials {
+		UserName:configuration.Adminusername,
+		EnrollmentSecret:configuration.AdminPwd}
+
+	err = networkHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.SDKConfigfile, configuration.ChannelConfigFile)
 	if err != nil {
-		log.Fatal(err.Error())
+		log.Fatal(err)
 	}
 
-	consHelper := helpers.ConsentHelper{
-		ChainID:         	configuration.ChainID,
-		Chain:			netHelper.Chain,
-		EventHub:		netHelper.EventHub,
-	}
 
-	netHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
+	networkHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
 	/*err = netHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
 	if err != nil {
 		log.Fatal(err.Error())
 	}*/
 
 	// Init application context
-	appContext := AppContext{ConsentHelper: consHelper, NetworkHelper: netHelper, ChainCodeID : configuration.ChainCodeID}
-
+	appContext := AppContext{
+		ChainCodeID: 		configuration.ChainCodeID,
+		Repo:                   configuration.Repo,
+		StatStorePath:          configuration.StatstorePath,
+		ChainID:         	configuration.ChainID,
+	}
 	router := mux.NewRouter().StrictSlash(false)
 	appContext.CreateOCMSRoutes(router)
 
@@ -154,7 +157,7 @@ func createConsent(consent helpers.Consent) (string, error) {
 	consent.Action = "create"
 	consent.AppID = APPID
 	data, _ := json.Marshal(consent)
-	request, err1 := buildRequest("POST", httpServerTest.URL+CONSENTAPI, string(data))
+	request, err1 := buildRequestWithLoginPassword("POST", httpServerTest.URL+CONSENTAPI, string(data), ADMINNAME, ADMINPWD)
 	if err1 != nil {
 		return "", err1
 	}
@@ -177,7 +180,7 @@ func getConsent(consentID string) (helpers.Consent, error) {
 	consent := helpers.Consent{Action: "get", AppID: APPID, ConsentID: consentID}
 	responseConsent := helpers.Consent{}
 	data, _ := json.Marshal(consent)
-	request, err1 := buildRequest("POST", httpServerTest.URL+CONSENTAPI, string(data))
+	request, err1 := buildRequestWithLoginPassword("POST", httpServerTest.URL+CONSENTAPI, string(data), ADMINNAME, ADMINPWD)
 	if err1 != nil {
 		return responseConsent, err1
 	}
@@ -206,7 +209,7 @@ func getListOfConsents(ownerID, consumerID string) ([]helpers.Consent, error) {
 		consent.Action = "list4consumer"
 	}
 	data, _ := json.Marshal(consent)
-	request, err1 := buildRequest("POST", httpServerTest.URL+CONSENTAPI, string(data))
+	request, err1 := buildRequestWithLoginPassword("POST", httpServerTest.URL+CONSENTAPI, string(data), ADMINNAME, ADMINPWD)
 	if err1 != nil {
 		return consents, err1
 	}
@@ -224,33 +227,3 @@ func getListOfConsents(ownerID, consumerID string) ([]helpers.Consent, error) {
 	return consents, nil
 }
 
-func buildRequest(method, uri, data string) (*http.Request, error) {
-	var requestData *strings.Reader
-	if data != "" {
-		requestData = strings.NewReader(data)
-	} else {
-		requestData = nil
-	}
-	request, err := http.NewRequest(method, uri, requestData)
-	if err != nil {
-		return request, err
-	}
-	return request, nil
-}
-
-
-func executeRequest(request *http.Request) (int, []byte, error) {
-	status := 0
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		return status, nil, err
-	}
-	status = response.StatusCode
-	body_bytes, err2 := ioutil.ReadAll(response.Body)
-	defer response.Body.Close()
-	if err2 != nil {
-		return status, body_bytes, err2
-	}
-	return status, body_bytes, nil
-}

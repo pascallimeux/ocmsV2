@@ -19,15 +19,16 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
+	adminCredentials := helpers.UserCredentials {
+		UserName:configuration.Adminusername,
+		EnrollmentSecret:configuration.AdminPwd}
 
 	// Init Hyperledger network
 	networkHelper := helpers.NetworkHelper{
 		Repo:                   configuration.Repo,
-		ConfigFile:      	configuration.SDKConfigfile,
-		ChannelConfig:   	configuration.ChannelConfigFile,
-		ChainID:         	configuration.ChainID,
-	}
-	err = networkHelper.InitNetwork(configuration.Adminusername, configuration.AdminPwd, configuration.StatstorePath, configuration.ProviderName)
+		StatStorePath:          configuration.StatstorePath,
+		ChainID:         	configuration.ChainID}
+	err = networkHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.SDKConfigfile, configuration.ChannelConfigFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -35,16 +36,13 @@ func main() {
 	// Deploy the consent smartcontract if is not deployed
 	networkHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
 
-
-	consentHelper := helpers.ConsentHelper{
-		ChainID:         	configuration.ChainID,
-		Chain:			networkHelper.Chain,
-		EventHub:		networkHelper.EventHub,
-	}
-
-
 	// Init application context
-	appContext := api.AppContext{ConsentHelper: consentHelper, NetworkHelper: networkHelper, ChainCodeID: configuration.ChainCodeID}
+	appContext := api.AppContext{
+		ChainCodeID: 		configuration.ChainCodeID,
+		Repo:                   configuration.Repo,
+		StatStorePath:          configuration.StatstorePath,
+		ChainID:         	configuration.ChainID,
+	}
 
 	// Init routes for application
 	router := mux.NewRouter().StrictSlash(false)

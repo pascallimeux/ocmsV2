@@ -1,114 +1,91 @@
 package api
 
+import (
+	"net/http"
+	"encoding/json"
+	"github.com/pascallimeux/ocmsV2/helpers"
+)
+
+
+type EnrollmentSecret struct {
+	Secret string
+}
 
 //HTTP Post - /ocms/v2/admin/user/register
 func (a *AppContext) registerUser(w http.ResponseWriter, r *http.Request) {
 	log.Debug("registerUser() : calling method -")
-
-	var bytes []byte
-	var consent helpers.Consent
-	err := json.NewDecoder(r.Body).Decode(&consent)
+	var user helpers.UserRegistrer
+	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		SendError(w, err)
 		return
 	}
-	registerRequest := fabricCAClient.RegistrationRequest{Name: userName, Type: "user", Affiliation: "org1.department1"}
-	enrolmentSecret, err := caClient.Register(adminUser, &registerRequest)
-	if err != nil {
-		t.Fatalf("Error from Register: %s", err)
-	}
-	fmt.Printf("Registered User: %s, Secret: %s\n", userName, enrolmentSecret)
-	// Enrol the previously registered user
-	ekey, ecert, err := caClient.Enroll(userName, enrolmentSecret)
-	if err != nil {
-		t.Fatalf("Error enroling user: %s", err.Error())
-	}
-
+	userHelper := &helpers.UserHelper{StatStorePath:a.StatStorePath}
+	err = InitHelper(r, userHelper)
 	if err != nil {
 		SendError(w, err)
 		return
 	}
+	enrollmentSecret := EnrollmentSecret{}
+	enrollmentSecret.Secret, err = userHelper.RegisterUser(user)
+	if err != nil {
+		SendError(w, err)
+	}
+	content, _ := json.Marshal(enrollmentSecret)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(bytes)
+	w.Write(content)
+
 }
 
 //HTTP Post - /ocms/v2/admin/user/enroll
 func (a *AppContext) enrollUser(w http.ResponseWriter, r *http.Request) {
 	log.Debug("enrollUser() : calling method -")
-
-	var bytes []byte
-	var consent helpers.Consent
-	err := json.NewDecoder(r.Body).Decode(&consent)
+	var credentials helpers.UserCredentials
+	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
 		SendError(w, err)
 		return
 	}
-	switch action := consent.Action; action {
-	case "create":
-		bytes, err = a.createConsent(a.ChainCodeID, consent)
-	case "list":
-		bytes, err = a.listConsents(a.ChainCodeID, consent.AppID)
-	case "get":
-		bytes, err = a.getConsent(a.ChainCodeID, consent.AppID, consent.ConsentID)
-	case "remove":
-		bytes, err = a.unactivateConsent(a.ChainCodeID, consent.AppID, consent.ConsentID)
-	case "list4owner":
-		bytes, err = a.getConsents4Owner(a.ChainCodeID, consent.AppID, consent.OwnerID)
-	case "list4consumer":
-		bytes, err = a.getConsents4Consumer(a.ChainCodeID, consent.AppID, consent.ConsumerID)
-	case "isconsent":
-		bytes, err = a.isConsent(a.ChainCodeID, consent)
-	default:
-		log.Error("bad action request")
-		SendError(w, err)
-		return
-	}
+	userHelper := &helpers.UserHelper{StatStorePath:a.StatStorePath}
+	err = InitHelper(r, userHelper)
 	if err != nil {
 		SendError(w, err)
 		return
 	}
+	err = userHelper.EnrollUser(credentials)
+	if err != nil {
+		SendError(w, err)
+		return
+	}
+	content := []byte("")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(bytes)
+	w.Write(content)
 }
 
 //HTTP Post - /ocms/v2/admin/user/revoke
 func (a *AppContext) revokeUser(w http.ResponseWriter, r *http.Request) {
 	log.Debug("enrollUser() : calling method -")
-
-	var bytes []byte
-	var consent helpers.Consent
-	err := json.NewDecoder(r.Body).Decode(&consent)
+	var credentials helpers.UserCredentials
+	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
 		SendError(w, err)
 		return
 	}
-	switch action := consent.Action; action {
-	case "create":
-		bytes, err = a.createConsent(a.ChainCodeID, consent)
-	case "list":
-		bytes, err = a.listConsents(a.ChainCodeID, consent.AppID)
-	case "get":
-		bytes, err = a.getConsent(a.ChainCodeID, consent.AppID, consent.ConsentID)
-	case "remove":
-		bytes, err = a.unactivateConsent(a.ChainCodeID, consent.AppID, consent.ConsentID)
-	case "list4owner":
-		bytes, err = a.getConsents4Owner(a.ChainCodeID, consent.AppID, consent.OwnerID)
-	case "list4consumer":
-		bytes, err = a.getConsents4Consumer(a.ChainCodeID, consent.AppID, consent.ConsumerID)
-	case "isconsent":
-		bytes, err = a.isConsent(a.ChainCodeID, consent)
-	default:
-		log.Error("bad action request")
-		SendError(w, err)
-		return
-	}
+	userHelper := &helpers.UserHelper{StatStorePath:a.StatStorePath}
+	err = InitHelper(r, userHelper)
 	if err != nil {
 		SendError(w, err)
 		return
 	}
+	err = userHelper.RevokeUser(credentials)
+	if err != nil {
+		SendError(w, err)
+		return
+	}
+	content := []byte("")
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(bytes)
+	w.Write(content)
 }
