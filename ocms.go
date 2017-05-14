@@ -13,7 +13,6 @@ import(
 var log = logging.MustGetLogger("ocms")
 
 func main() {
-
 	// Init settings
 	configuration, err := settings.GetSettings(".", "ocms")
 	if err != nil {
@@ -28,7 +27,11 @@ func main() {
 		Repo:                   configuration.Repo,
 		StatStorePath:          configuration.StatstorePath,
 		ChainID:         	configuration.ChainID}
-	err = networkHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.SDKConfigfile, configuration.ChannelConfigFile)
+	err = networkHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.NetworkConfigfile, configuration.ChannelConfigFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = configuration.InitLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -56,6 +59,6 @@ func main() {
 	}
 	log.Fatal(s.ListenAndServe().Error())
 
-	defer configuration.Close()
+	defer configuration.CloseLogger()
 
 }

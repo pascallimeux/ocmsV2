@@ -1,11 +1,23 @@
+X faire uncontainer docker pour la livraison
+X Gestion des logs avec go-logging
+X resoudre pb de transaction avec ack
+- refactorer le paramétrage
+- mettre des logs pour chaque appel de fonction et chaque erreur
 - retour d'erreur des API
+- refactorer le code
+- serparer le code de consent et de his
+- refactorer les APIs
+- faire des tests avec plusieurs containers (pour comprendre le fonctionnement de keystore et enroll_user etc)
+- verifier le fonctionnement des logs entre sdk et his avec fichier et niveau
+- creer un fichier .tx pour créer un nouveau channel
+
 - renommer le projet en HIS
-- tester les get sur client et sur chain
+- tester les get sur client et sur chain et prevoir api pour deploiement de peer etc...
 - faire les classes de tests associées aux handler et aux helpers et verifier le contenu des tests
 - faire les tests postman
-- Gestion des logs avec go-logging
-- mettre des logs pour chaque appel de fonction et chaque erreur
-- resoudre pb de transaction avec ack
+
+
+- verifier les objets (string) renvoyés par les api de type query
 - les api query qui ne fonctionnent pas
 - mettre les APIs en https
 - refactoriser le code (majuscule, methode publique etc.)

@@ -55,15 +55,16 @@ func (nh *NetworkHelper) Init(userCredentials UserCredentials) error{
 	return nil
 }
 
-func (nh *NetworkHelper) StartNetwork(userCredentials UserCredentials, providerName, configFile, channelConfig string)  error{
+func (nh *NetworkHelper) StartNetwork(userCredentials UserCredentials, providerName, netConfigFile, channelConfig string)  error{
 	log.Debug("InitNetwork(username:"+ userCredentials.UserName+" providerName:"+ providerName+") : calling method -")
 	initError := fmt.Errorf("InitNetwork return error")
-	// Init config
-	err := sdkConfig.InitConfig(configFile)
+	// Init SDK config
+	err := sdkConfig.InitConfig(netConfigFile)
 	if err != nil {
-		log.Error("Failed init sdk-go config", err)
+		log.Error("Failed init sdk config", err)
 		return initError
 	}
+
 	err = bccspFactory.InitFactories(&bccspFactory.FactoryOpts{
 		ProviderName: providerName,
 		SwOpts: &bccspFactory.SwOpts{
@@ -204,7 +205,7 @@ func getEventHub() (events.EventHub, error) {
 	}
 	for _, p := range peerConfig {
 		if p.EventHost != "" && p.EventPort != 0 {
-			fmt.Printf("******* EventHub connect to peer (%s:%d) *******\n", p.EventHost, p.EventPort)
+			log.Debug("EventHub connect to peer (", p.EventHost,":", p.EventPort,")")
 			eventHub.SetPeerAddr(fmt.Sprintf("%s:%d", p.EventHost, p.EventPort),
 				p.TLS.Certificate, p.TLS.ServerHostOverride)
 			foundEventHub = true

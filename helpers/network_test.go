@@ -6,6 +6,8 @@ import (
 	"time"
 	"strings"
 	"github.com/pascallimeux/ocmsV2/settings"
+	sdkConfig "github.com/hyperledger/fabric-sdk-go/config"
+	//"encoding/json"
 )
 
 var netHelper  NetworkHelper
@@ -37,7 +39,7 @@ func setup() {
 
 	var err error
 	// Init settings
-	configuration, err = settings.GetSettings("..", "ocmstest")
+	configuration, err = settings.GetSettings("..", "ocms_test")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -46,7 +48,11 @@ func setup() {
 
 	// Init network helper
 	netHelper = NetworkHelper{Repo: configuration.Repo, StatStorePath: configuration.StatstorePath, ChainID: configuration.ChainID}
-	err = netHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.SDKConfigfile, configuration.ChannelConfigFile)
+	err = netHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.NetworkConfigfile, configuration.ChannelConfigFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = configuration.InitLogger()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -97,18 +103,47 @@ func shutdown(){
 	if err != nil {
 		log.Fatal("DeleteConsent return error: ", err)
 	}
-	defer configuration.Close()
+	defer configuration.CloseLogger()
+}
+func TestPeerconfig(t *testing.T) {
+	peersConfig, _ := sdkConfig.GetPeersConfig()
+	t.Log("***************************************nb peers:", len(peersConfig))
+	for _,peer := range peersConfig {
+		t.Log("Host: ", peer.Host)
+		t.Log("Port: ", peer.Port)
+		t.Log("EventHost: ", peer.EventHost)
+		t.Log("EventPort: ", peer.EventPort)
+		t.Log("Primary: ", peer.Primary)
+	}
+
 }
 
-func Test1(t *testing.T) {
+func TestChain(t *testing.T) {
 	chainname := netHelper.Chain.GetName()
-	//orderers := netHelper.Chain.GetOrderers()
-	//peers := netHelper.Chain.GetPeers()
+	orderers := netHelper.Chain.GetOrderers()
+	peers := netHelper.Chain.GetPeers()
 	ppeers := netHelper.Chain.GetPrimaryPeer()
+	orgs, _ := netHelper.Chain.GetOrganizationUnits()
+	mspManager,_ := netHelper.Chain.GetMSPManager().GetMSPs()
 	t.Log("chainID: ", chainname)
-	//t.Log("orderers: ", strings.Join(orderers.GetURL()," "))
-	//t.Log("peers: ", strings.Join(peers.GetURL()," "))
-	t.Log("primary peers: ", string(ppeers.GetURL()))
+	for _,orderer := range orderers {
+		t.Log("orderer: ", orderer.GetURL())
+	}
+	for _,peer := range peers {
+		t.Log("peer: ", peer.GetURL())
+	}
+	t.Log("primary peer: ", string(ppeers.GetURL()))
+	t.Log("organisation unit: ", strings.Join(orgs," "))
+	t.Log("mspManager: ", mspManager)
+}
+
+func TestClient(t *testing.T) {
+	value,_ := netHelper.Client.GetStateStore().GetValue("admin")
+	user, _:= netHelper.Client.LoadUserFromStateStore("admin")
+	t.Log("value from statstore (admin): ", string(value))
+	t.Log("user name: ", user.GetName())
+	t.Log("user enrollment cert: ", string(user.GetEnrollmentCertificate()))
+	t.Log("user roles: ",  strings.Join(user.GetRoles()," "))
 }
 
 func TestQueryInfos(t *testing.T) {
@@ -136,6 +171,8 @@ func TestQueryBlockByNumber(t *testing.T) {
 	if err != nil {
 		t.Error("QueryBlockByNumber return error: ", err)
 	}
+	//dis,_ := json.Marshal(block)
+	//t.Log("block: ", dis)
 	t.Log("block: ", block.String())
 }
 

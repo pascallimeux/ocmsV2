@@ -3,10 +3,9 @@ version = "2.0.0 (2017-05-09)"
 
 [logger]
 mode = "debug"
-logFileName = "./ocms.log"
 
 [server]
-#httpHostIp = "10.194.18.46"  
+#httpHostIp = "10.194.18.46"
 httpHostPort = 8000
 readTimeout = 5000000000 # in nanoseconds
 writeTimeout = 10000000000 # in nanoseconds
@@ -14,7 +13,7 @@ writeTimeout = 10000000000 # in nanoseconds
 [chaincode]
 chainCodePath     = "github.com/consentv2"
 chainCodeVersion  = "v0"
-chainCodeID       = "consentv2"
+chainCodeID       = "consentv2test"
 chainID           = "testchannel"
 providerName      = "SW"
 

@@ -28,7 +28,7 @@ type Settings struct {
 	ProviderName       string
 	Repo               string
 	StatstorePath      string
-	SDKConfigfile      string
+	NetworkConfigfile  string
 	ChannelConfigFile  string
 	Adminusername	   string
 	AdminPwd           string
@@ -43,9 +43,18 @@ func (s *Settings) ToString() string {
 	return st
 }
 
-func (s *Settings) Close() {
+func (s *Settings) CloseLogger() {
 	s.LogFile.Close()
 }
+
+func (s *Settings) InitLogger() (err error){
+	s.LogFile, err = InitLogger(s.LogMode, s.LogFileName)
+	if err != nil {
+		return errors.New("Error logfile!")
+	}
+	return nil
+}
+
 
 func findConfigFile(configPath, configFileName string) error {
 	path := configPath + "/" + configFileName + ".toml"
@@ -86,12 +95,14 @@ func GetSettings(configPath, configFileName string) (Settings, error) {
 		if logFileName == "" {
 			logFileName = viper.GetString("logger.logFileName")
 		}
+		configuration.LogFileName = logFileName
+		configuration.LogMode = logMode
+
 		configuration.LogFile, err = InitLogger(logMode, logFileName)
 		if err != nil {
 			return configuration, errors.New("Error logfile!")
 		}
-		configuration.LogFileName = logFileName
-		configuration.LogMode = logMode
+
 
 		configuration.HttpHostUrl, err = getHostUrl()
 		if err != nil {
@@ -108,7 +119,7 @@ func GetSettings(configPath, configFileName string) (Settings, error) {
 
 		configuration.Repo = viper.GetString("path.repo")
 		configuration.StatstorePath = viper.GetString("path.statStorePath")
-		configuration.SDKConfigfile = viper.GetString("path.sdkConfigFile")
+		configuration.NetworkConfigfile = viper.GetString("path.networkConfigFile")
 		configuration.ChannelConfigFile = viper.GetString("path.channelConfigFile")
 
 		configuration.Adminusername = viper.GetString("admin.adminUsername")
@@ -149,7 +160,7 @@ func getOutboundIP() (string, error) {
 	return localAddr[0:idx], nil
 }
 
-func InitLogger(logMode, logFilePath string) (*os.File, error) {
+func InitLogger2(logMode, logFilePath string) (*os.File, error) {
 	format := logging.MustStringFormatter(
 		//`%{color}%{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`,
 		` %{time:15:04:05.000} %{shortfunc} ▶ %{level:.4s} %{id:03x} %{message}`,
@@ -188,6 +199,32 @@ func InitLogger(logMode, logFilePath string) (*os.File, error) {
 	backendLeveled.SetLevel(level, "")
 	logging.SetBackend(backendLeveled)
 	log.Debug("Logger initialized")
+	return f, nil
+}
+
+
+func  InitLogger(logMode, logFilePath string) (*os.File, error) {
+	f := os.Stderr
+	if logFilePath != "" {
+		if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
+			f, err = os.Create(logFilePath)
+			if err != nil {
+				return f, err
+			}
+		}else {
+			f, err = os.OpenFile(logFilePath, os.O_APPEND | os.O_WRONLY, 0600)
+			if err != nil {
+				return f, err
+			}
+		}
+	}
+	var format = logging.MustStringFormatter(
+		`%{color}%{time:15:04:05.000} [%{module}] %{level:.4s} : %{color:reset} %{message}`,
+	)
+	logLevel := logging.DEBUG
+	backend := logging.NewLogBackend(f, "", 0)
+	backendFormatter := logging.NewBackendFormatter(backend, format)
+	logging.SetBackend(backendFormatter).SetLevel(logging.Level(logLevel), "ocms")
 	return f, nil
 }
 

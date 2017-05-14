@@ -1,17 +1,17 @@
 client:
  peers:
-  #peer1:
+  # peer0
   - host: "localhost"
     port: 7051
-    event_host: "localhost"
-    event_port: 7053
+    eventHost: "localhost"
+    eventPort: 7053
     primary: true
     tls:
       # Certificate location absolute path
       certificate: "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/tls/peers/peer0/ca-cert.pem"
       serverHostOverride: "peer0"
 
-  # peer2:
+  # peer1:
   - host: "localhost"
     port: 7056
     eventHost: "localhost"

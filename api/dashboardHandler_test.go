@@ -1,7 +1,6 @@
 package api
 
 import (
-	"github.com/pascallimeux/ocmsV2/helpers"
 	"testing"
 	"errors"
 	"net/http"

@@ -2,8 +2,8 @@
 version = "2.0.0 (2017-05-09)"
 
 [logger]
-mode = "debug"
-logFileName = "./ocms.log"
+mode = "info"
+logFileName = "/var/log/ocms/ocms.log"
 
 [server]
 #httpHostIp = "10.194.18.46"  
@@ -19,10 +19,10 @@ chainID           = "testchannel"
 providerName      = "SW"
 
 [path]
-repo              = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures"
-statStorePath     = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/enroll_user"
-networkConfigFile = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/config/config_dev.yaml"
-channelConfigFile = "/opt/gopath/src/github.com/pascallimeux/ocmsV2/fixtures/channel/testchannel.tx"
+repo              = "/var/ocms/fixtures"
+statStorePath     = "/var/ocms/fixtures/enroll_user"
+networkConfigFile = "/var/ocms/fixtures/config/config_prod.yaml"
+channelConfigFile = "/var/ocms/fixtures/channel/testchannel.tx"
 
 [admin]
 adminUsername     = "admin"

@@ -1,8 +1,8 @@
 package api
 
 import (
-	"encoding/json"
 	"errors"
+	"encoding/json"
 	"github.com/gorilla/mux"
 	"github.com/pascallimeux/ocmsV2/helpers"
 	"github.com/pascallimeux/ocmsV2/settings"
@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 func setup() {
 	// Init settings
 	var err error
-	configuration, err = settings.GetSettings("..", "ocmstest")
+	configuration, err = settings.GetSettings("..", "ocms_test")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -46,11 +46,14 @@ func setup() {
 		UserName:configuration.Adminusername,
 		EnrollmentSecret:configuration.AdminPwd}
 
-	err = networkHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.SDKConfigfile, configuration.ChannelConfigFile)
+	err = networkHelper.StartNetwork(adminCredentials, configuration.ProviderName, configuration.NetworkConfigfile, configuration.ChannelConfigFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	err = configuration.InitLogger()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	networkHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
 	/*err = netHelper.DeployCC(configuration.ChainCodePath, configuration.ChainCodeVersion, configuration.ChainCodeID)
@@ -78,7 +81,7 @@ func setup() {
 
 func shutdown() {
 	defer httpServerTest.Close()
-	defer configuration.Close()
+	defer configuration.CloseLogger()
 }
 
 func TestCreateConsentFromAPINominal(t *testing.T) {
